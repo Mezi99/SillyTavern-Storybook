@@ -1,0 +1,181 @@
+<div id="storybook_settings" class="storybook_settings">
+
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b><i class="fa-solid fa-book-open"></i> Storybook</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+
+            <label class="checkbox_label" for="storybook_enabled">
+                <input id="storybook_enabled" type="checkbox" class="checkbox">
+                <span>Enable automatic storybook generation</span>
+            </label>
+
+            <label class="checkbox_label" for="storybook_auto_on_swipe">
+                <input id="storybook_auto_on_swipe" type="checkbox" class="checkbox">
+                <span>Also illustrate new swipes</span>
+                <i class="fa-solid fa-info-circle" title="Regenerate the storybook when a message is swiped to a new variant."></i>
+            </label>
+
+            <label class="checkbox_label" for="storybook_open_lightbox">
+                <input id="storybook_open_lightbox" type="checkbox" class="checkbox">
+                <span>Open the viewer when a storybook is ready</span>
+            </label>
+
+            <label class="checkbox_label" for="storybook_save_to_gallery">
+                <input id="storybook_save_to_gallery" type="checkbox" class="checkbox">
+                <span>Save generated images into the character gallery</span>
+            </label>
+
+            <hr>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_trigger">Generate when</label>
+                <select id="storybook_trigger" class="text_pole">
+                    <option value="reply">Every assistant reply</option>
+                    <option value="interval">Every N assistant replies</option>
+                    <option value="manual">Only when I ask</option>
+                </select>
+            </div>
+
+            <div id="storybook_interval_row" class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_interval">Reply interval</label>
+                <input id="storybook_interval" class="text_pole" type="number" min="1" max="50" step="1">
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_keyframes">Keyframes per reply</label>
+                <input id="storybook_keyframes" class="text_pole" type="number" min="1" max="6" step="1">
+                <small>Current: <span id="storybook_keyframes_value">3</span></small>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_size">Image size</label>
+                <select id="storybook_size" class="text_pole">
+                    <option value="portrait">Portrait 832 x 1216</option>
+                    <option value="landscape">Landscape 1216 x 832</option>
+                    <option value="square">Square 1024 x 1024</option>
+                    <option value="st">Follow Image Generation settings</option>
+                </select>
+            </div>
+
+            <hr>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_anchor">Character anchor</label>
+                <textarea id="storybook_anchor" class="text_pole textarea_compact autoSetHeight" rows="2" placeholder="Optional. Reusable description of the main character, reused in every frame."></textarea>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_style_text">Style</label>
+                <textarea id="storybook_style_text" class="text_pole textarea_compact autoSetHeight" rows="2" placeholder="Optional. Overall look, e.g. soft watercolor storybook illustration."></textarea>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_negative">Negative prompt</label>
+                <textarea id="storybook_negative" class="text_pole textarea_compact autoSetHeight" rows="1" placeholder="Optional. Things to avoid in every frame."></textarea>
+            </div>
+
+            <hr>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_context_messages">Previous messages given to the planner</label>
+                <input id="storybook_context_messages" class="text_pole" type="number" min="0" max="10" step="1">
+                <small>Current: <span id="storybook_context_messages_value">2</span></small>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <span>Character card fields</span>
+                <label class="checkbox_label" for="storybook_include_description">
+                    <input id="storybook_include_description" type="checkbox" class="checkbox">
+                    <span>Description</span>
+                </label>
+                <label class="checkbox_label" for="storybook_include_personality">
+                    <input id="storybook_include_personality" type="checkbox" class="checkbox">
+                    <span>Personality</span>
+                </label>
+                <label class="checkbox_label" for="storybook_include_scenario">
+                    <input id="storybook_include_scenario" type="checkbox" class="checkbox">
+                    <span>Scenario</span>
+                </label>
+                <label class="checkbox_label" for="storybook_include_persona">
+                    <input id="storybook_include_persona" type="checkbox" class="checkbox">
+                    <span>User persona</span>
+                </label>
+            </div>
+
+            <hr>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <span>Storyboard planner</span>
+                <label class="radio_label" for="storybook_planner_backend_st">
+                    <input id="storybook_planner_backend_st" type="radio" name="storybook_planner_backend" value="st">
+                    <span>SillyTavern chat API</span>
+                </label>
+                <label class="radio_label" for="storybook_planner_backend_custom">
+                    <input id="storybook_planner_backend_custom" type="radio" name="storybook_planner_backend" value="custom">
+                    <span>Custom OpenAI-compatible API</span>
+                </label>
+                <small id="storybook_planner_status" class="storybook-status-text"></small>
+            </div>
+
+            <div id="storybook_custom_api_fields" class="flex-container flexFlowColumn wide100p">
+                <div class="flex-container flexFlowColumn wide100p">
+                    <label for="storybook_custom_base_url">Base URL</label>
+                    <input id="storybook_custom_base_url" class="text_pole" type="text" placeholder="https://api.example.com/v1">
+                </div>
+                <div class="flex-container flexFlowColumn wide100p">
+                    <label for="storybook_custom_model">Model</label>
+                    <input id="storybook_custom_model" class="text_pole" type="text" placeholder="gpt-4o-mini">
+                </div>
+                <div class="flex-container flexFlowColumn wide100p">
+                    <label for="storybook_custom_api_key">API key</label>
+                    <input id="storybook_custom_api_key" class="text_pole" type="password" placeholder="Stored only in this browser">
+                </div>
+                <div class="flex-container flexFlowColumn wide100p">
+                    <label for="storybook_custom_temperature">Temperature</label>
+                    <input id="storybook_custom_temperature" class="text_pole" type="number" min="0" max="2" step="0.1">
+                </div>
+                <div class="flex-container flexFlowColumn wide100p">
+                    <label for="storybook_custom_max_tokens">Max tokens</label>
+                    <input id="storybook_custom_max_tokens" class="text_pole" type="number" min="256" max="16384" step="64">
+                </div>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_planner_prompt">Planner prompt</label>
+                <textarea id="storybook_planner_prompt" class="text_pole textarea_compact autoSetHeight" rows="4" placeholder="Leave empty to use the built-in prompt."></textarea>
+                <small id="storybook_planner_prompt_hint">Using the built-in planner prompt.</small>
+                <div id="storybook_planner_reset" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-rotate-left"></i> Reset to built-in prompt</div>
+            </div>
+
+            <hr>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <span>Image generation</span>
+                <small id="storybook_image_backend" class="storybook-status-text">SillyTavern Image Generation</small>
+                <small id="storybook_image_status" class="storybook-status-text"></small>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p storybook-actions">
+                <div id="storybook_generate_last" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate for the last reply</div>
+                <div id="storybook_cancel_job" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-stop"></i> Stop the running job</div>
+                <div id="storybook_clear_last" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-eraser"></i> Remove storybook from the last reply</div>
+                <div id="storybook_test_planner" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-list-ol"></i> Test the planner</div>
+                <div id="storybook_test_image" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-image"></i> Test image generation</div>
+                <div id="storybook_show_sd" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-gear"></i> Show Image Generation settings</div>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <span>Preview</span>
+                <div id="storybook_preview" class="storybook-preview"></div>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <small id="storybook_stats" class="storybook-status-text"></small>
+            </div>
+
+        </div>
+    </div>
+</div>

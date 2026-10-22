@@ -1,0 +1,17 @@
+{
+    "display_name": "Storybook",
+    "loading_order": 1003,
+    "requires": [],
+    "optional": [
+        "sd"
+    ],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Mezi99",
+    "version": "1.0.0",
+    "homePage": "https://github.com/Mezi99/SillyTavern-Storybook",
+    "hooks": {
+        "activate": "init"
+    },
+    "auto_update": true
+}
