@@ -92,6 +92,23 @@ function triggerStorybook(mesId, reason) {
     enqueue(mesId, { reason });
 }
 
+/**
+ * Removes artwork that was generated for a different text variant.
+ * Swiping and editing replace the message text, so the old storybook no longer belongs to it.
+ * @param {number} mesId Message index
+ */
+function dropStaleStorybook(mesId) {
+    const message = tryGetCtx()?.chat?.[mesId];
+    if (!isIllustratable(message)) {
+        return;
+    }
+    const storybook = getStorybook(message);
+    if (storybook && isStorybookStale(message, storybook)) {
+        clearStorybook(message);
+        void saveNow();
+    }
+}
+
 function describeStatus() {
     const backend = describeImageBackend();
     const planner = describePlannerBackend(getSettings());
@@ -226,19 +243,14 @@ function registerEvents() {
     const { eventSource, eventTypes } = ctx;
 
     eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, (mesId, type) => {
-        const ctxNow = tryGetCtx();
-        const message = ctxNow?.chat?.[mesId];
+        const message = tryGetCtx()?.chat?.[mesId];
         if (!isIllustratable(message)) {
             return;
         }
 
         // A storybook belongs to one exact reply. Swipes and edits replace the text,
         // so artwork from the previous variant has to go.
-        const storybook = getStorybook(message);
-        if (storybook && isStorybookStale(message, storybook)) {
-            clearStorybook(message);
-            void saveNow();
-        }
+        dropStaleStorybook(mesId);
 
         if (type === 'swipe') {
             renderMessage(mesId);
@@ -287,19 +299,12 @@ function registerEvents() {
     });
 
     eventSource.on(eventTypes.MESSAGE_SWIPED, (mesId) => {
-        const ctxNow = tryGetCtx();
-        const message = ctxNow?.chat?.[mesId];
-        if (isIllustratable(message)) {
-            const storybook = getStorybook(message);
-            if (storybook && isStorybookStale(message, storybook)) {
-                clearStorybook(message);
-                void saveNow();
-            }
-        }
+        dropStaleStorybook(mesId);
         renderMessage(mesId);
     });
 
     eventSource.on(eventTypes.MESSAGE_EDITED, (mesId) => {
+        dropStaleStorybook(mesId);
         renderMessage(mesId);
     });
 
