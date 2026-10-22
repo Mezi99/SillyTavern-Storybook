@@ -1,4 +1,4 @@
-import { STORY_EVENTS, on } from './src/bus.js';
+import { STORY_EVENTS, emit, on } from './src/bus.js';
 import { getCtx, isIllustratable, lastAssistantMessageId, tryGetCtx } from './src/context.js';
 import { TRIGGERS } from './src/defaults.js';
 import {
@@ -10,6 +10,9 @@ import {
 } from './src/settings.js';
 import { cancelJob, enqueue } from './src/pipeline.js';
 import { initCarousel, renderAll, renderMessage } from './src/carousel.js';
+import { initView } from './src/view.js';
+import { initLightbox } from './src/lightbox.js';
+import { initWindow, resetWindowLayout } from './src/window.js';
 import { registerCommands } from './src/commands.js';
 import { describeImageBackend, generateImage } from './src/backends/image.js';
 import { planKeyframes } from './src/planner.js';
@@ -233,8 +236,14 @@ function bindActionButtons() {
         clearStorybook(message);
         void saveNow();
         renderMessage(mesId);
+        emit(STORY_EVENTS.UPDATE, { mesId });
         updateStatsUI();
         toast('info', 'Storybook removed from that message.');
+    });
+
+    onClick('storybook_reset_window', () => {
+        resetWindowLayout();
+        toast('info', 'Floating window position reset.');
     });
 }
 
@@ -359,6 +368,9 @@ export async function init() {
     bindSettingsControls();
     bindActionButtons();
     registerCommands();
+    initView();
+    initLightbox();
+    initWindow();
     initCarousel();
     registerEvents();
     refreshSettingsUI();

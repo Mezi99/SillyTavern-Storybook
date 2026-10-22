@@ -7,6 +7,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.1.0] - 2026-10-22
+
+### Added
+
+- Floating Storybook window as the default display. It opens automatically for the reply you are browsing
+  and can be dragged, resized and collapsed.
+- Per-chat window selection, remembered in `localStorage`, plus header buttons to step through illustrated
+  replies and jump back to the source message.
+- Floating book button that reopens the window after it is closed and shows a badge when new artwork is ready.
+- Window layout persistence and a **Reset window position** action in the settings drawer.
+- Mobile bottom-sheet layout for narrow screens.
+- **Show the inline carousel under messages** setting for the legacy display, off by default.
+
+### Changed
+
+- The window is now the primary way to view, regenerate and clear storybooks.
+- The full-screen viewer, frame navigation, captions and prompt panel are shared by both display modes.
+- Window layout and selection are stored in the browser, never in the chat file.
+- README and Technical reference updated for the new display model.
+
+### Removed
+
+- The per-message book button (`.storybook_gen`) in the message action row. All actions now live in the
+  window.
+
+### Fixed
+
+- Closing the full-screen viewer with `Esc` no longer closes the Storybook window behind it.
+- Clicking next/previous no longer snaps back to the old frame while the track is smooth-scrolling.
+
+---
+
 ## [1.0.0] - 2026-10-22
 
 First public release.

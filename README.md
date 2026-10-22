@@ -2,7 +2,8 @@
 
 A SillyTavern extension that turns each assistant reply into a small illustrated storybook:
 a storyboard planner splits the reply into keyframes, an image model renders each one, and the
-frames appear in an inline carousel under the message with a full-screen viewer.
+frames appear in a floating Storybook window with a full-screen viewer. An optional inline
+carousel can still show the artwork under each message.
 
 - Original code, MIT licensed.
 - Uses only public SillyTavern APIs.
@@ -13,8 +14,10 @@ frames appear in an inline carousel under the message with a full-screen viewer.
 ## Features
 
 - **Per-reply storybooks**: 1 to 6 keyframes rendered for a single assistant message.
-- **Inline carousel**: swipeable frames, page dots, captions and per-frame status under the message.
-- **Full-screen viewer**: click a frame to open it, navigate with `←` / `→`, close with `Esc`, drag the window by its header.
+- **Floating Storybook window**: opens automatically, follows the reply you are browsing, and can be dragged, resized or collapsed. Its position and size are remembered per browser.
+- **Legacy inline carousel**: optional under-message display with page dots and captions, off by default.
+- **Full-screen viewer**: click a frame to open it, navigate with `←` / `→`, and close with `Esc`.
+- **Reply navigation**: step through illustrated replies from the window header, jump back to the message, or toggle the window with the floating book button.
 - **Persistent and per-swipe**: artwork is stored on the message and on the active swipe variant, so it survives reloads and follows the variant it belongs to.
 - **Automatic invalidation**: edited or swiped-away text drops the old artwork instead of showing a mismatch.
 - **Trigger modes**: every reply, every N replies, or manual only.
@@ -62,8 +65,8 @@ No build step and no external dependencies are required.
 1. Open a character or group chat.
 2. In the Storybook drawer, set **Generate when** to *Every assistant reply*.
 3. Optionally add a **Character anchor** such as `young woman, shoulder-length black hair, green eyes, grey coat`.
-4. Send a message. A **Storybook** carousel appears under the reply as frames render.
-5. Click any finished frame to open the viewer, or use the book button in the message's action row to generate or regenerate on demand.
+4. Send a message. The floating Storybook window appears and fills with frames as they render.
+5. Click any finished frame to open the viewer. Use the refresh action in the window to regenerate, or the floating book button to hide and reopen the window.
 
 ---
 
@@ -74,6 +77,7 @@ No build step and no external dependencies are required.
 | Enable automatic storybook generation | Master switch for automatic triggers. Manual generation still works. |
 | Also illustrate new swipes | Render a storybook for each new swipe variant. |
 | Open the viewer when a storybook is ready | Opens the full-screen viewer when generation finishes. |
+| Show the inline carousel under messages | Use the legacy under-message display instead of the floating window. Off by default. |
 | Save generated images into the character gallery | Passes the gallery flag to SillyTavern Image Generation. |
 | Generate when | `Every assistant reply`, `Every N assistant replies`, or `Only when I ask`. |
 | Reply interval | The `N` used by the interval trigger. |
@@ -93,6 +97,7 @@ The drawer also contains utility buttons:
 - **Generate for the last reply**
 - **Stop the running job**
 - **Remove storybook from the last reply**
+- **Reset window position** (restores the floating window to its default size and location)
 - **Test the planner** (shows the returned JSON in the preview area)
 - **Test image generation**
 - **Show Image Generation settings**
@@ -121,8 +126,19 @@ The command reports what it did, for example `Storybook generation started with 
 - **Group chats**: when a group is created, every member greeting is illustrated.
 - **Swipes**: only when *Also illustrate new swipes* is enabled.
 - **Interval**: every `N` assistant replies since the last illustrated reply.
-- **Manual**: only through the button or the slash command.
+- **Manual**: only through the window's **Illustrate this reply** / regenerate actions or the slash command.
 - **User and system messages** are never illustrated.
+
+---
+
+## The floating window
+
+- The window opens automatically when a chat with an illustrated reply loads. For old chats it shows the newest storybook attached to that chat.
+- The header arrows move between illustratable replies. The selection is remembered per chat in the browser.
+- Drag the header to move the window, use the bottom-right handle to resize it, and use the chevron to collapse it to the header.
+- Closing the window leaves a floating book button on screen. Click it to reopen the window at the last position.
+- **Reset window position** in the settings drawer restores the default layout if the window ends up off-screen.
+- On narrow screens the window becomes a bottom sheet.
 
 ---
 
@@ -136,7 +152,8 @@ both copies linked. This means:
 - Artwork follows the swipe variant it was generated for.
 - Editing or swiping to different text removes the mismatched artwork automatically.
 
-Nothing is written outside the chat file, except the custom planner API key, which is kept in the
+Nothing is written outside the chat file, except the custom planner API key and the window layout
+(`storybook_window_layout`) and per-chat selection (`storybook_window_selection`), which are kept in the
 browser's `localStorage`.
 
 ---
@@ -159,6 +176,10 @@ generation there. If that fails, the Storybook cannot succeed either.
 That is intentional: the artwork belonged to a different text variant. Generate again on the current
 variant.
 
+**The window is off-screen or too small**
+Use **Reset window position** in the Storybook drawer, or clear `storybook_window_layout` in the
+browser's local storage.
+
 **Custom planner API errors**
 Check the base URL. A plain host, `/v1`, or a full `/chat/completions` URL are all accepted. The API key
 must be entered in the Storybook drawer of the same browser profile.
@@ -171,17 +192,20 @@ must be entered in the Storybook drawer of the same browser profile.
 index.js              Extension entry point: init, event wiring, settings/actions, triggers
 manifest.json         SillyTavern extension manifest
 settings.html         Settings drawer markup
-style.css             Carousel, viewer and settings styling
+style.css             Window, carousel, viewer and settings styling
 src/
   bus.js              Tiny internal event bus
-  carousel.js         Inline carousel, message buttons and full-screen viewer
+  carousel.js         Optional legacy inline carousel host
   commands.js         /storybook slash command
   context.js          SillyTavern context helpers, planner input, chat helpers
   defaults.js         Default settings, size presets, planner prompt and JSON schema
+  lightbox.js         Full-screen image viewer
   persistence.js      Storybook storage, swipe mirroring, hashes, save helpers
   pipeline.js         Job queue, generation pipeline, cancellation, dedup
   planner.js          Storyboard planning and prompt compilation
   settings.js         Settings storage/binding, custom API key, stats
+  view.js             Shared storybook rendering and navigation handlers
+  window.js           Floating Storybook window, floating button and layout persistence
   backends/
     image.js          Image Generation backend via the /imagine command
     planner.js        Custom OpenAI-compatible planner backend

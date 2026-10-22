@@ -142,6 +142,7 @@ export function bindSettingsControls() {
     bindCheckbox('storybook_auto_on_swipe', (s, v) => s.autoOnSwipe = v);
     bindCheckbox('storybook_open_lightbox', (s, v) => s.openLightboxOnFinish = v);
     bindCheckbox('storybook_save_to_gallery', (s, v) => s.saveToGallery = v);
+    bindCheckbox('storybook_show_inline', (s, v) => s.showInline = v);
 
     bindInput('storybook_keyframes', (s, v) => s.keyframes = Math.min(6, Math.max(1, Number(v) || 3)));
     bindInput('storybook_trigger', (s, v) => s.trigger = v);
@@ -233,6 +234,7 @@ export function refreshSettingsUI() {
     setChecked('storybook_auto_on_swipe', settings.autoOnSwipe);
     setChecked('storybook_open_lightbox', settings.openLightboxOnFinish);
     setChecked('storybook_save_to_gallery', settings.saveToGallery);
+    setChecked('storybook_show_inline', settings.showInline);
 
     setValue('storybook_keyframes', settings.keyframes);
     setValue('storybook_trigger', settings.trigger);

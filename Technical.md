@@ -1,7 +1,7 @@
 # Storybook - Technical Reference
 
 This document describes how the extension is built, how it talks to SillyTavern, and what to watch
-out for when maintaining it. It targets version **1.0.0**.
+out for when maintaining it. It targets version **1.1.0**.
 
 ---
 
@@ -22,7 +22,7 @@ out for when maintaining it. It targets version **1.0.0**.
 | `index.js` | Entry point (`init`), settings/action binding, SillyTavern event wiring, trigger decisions. |
 | `manifest.json` | Extension manifest (`js`, `css`, `loading_order`, `hooks.activate`). |
 | `settings.html` | Drawer markup injected into `#extensions_settings` (or `#extensions_settings2`). |
-| `style.css` | Carousel, viewer, status pills and settings styling. |
+| `style.css` | Floating window, legacy carousel, viewer, status pills and settings styling. |
 | `src/bus.js` | Minimal synchronous event bus for intra-extension events. |
 | `src/context.js` | Context access, chat helpers, planner input assembly, hashing, size resolution. |
 | `src/defaults.js` | Default settings, `MODULE_NAME`, `SETTINGS_KEY`, size presets, trigger enum, built-in prompt, JSON schema. |
@@ -32,7 +32,10 @@ out for when maintaining it. It targets version **1.0.0**.
 | `src/backends/planner.js` | Custom OpenAI-compatible planner HTTP client. |
 | `src/backends/image.js` | Image generation via SillyTavern's `/imagine` command. |
 | `src/pipeline.js` | Job queue, generation state machine, cancellation, dedup guard. |
-| `src/carousel.js` | Inline carousel, message action button, full-screen viewer. |
+| `src/view.js` | Shared storybook markup, active-frame state and delegated interaction handlers. |
+| `src/window.js` | Floating Storybook window, floating button, reply selection, drag/resize/collapse, layout persistence. |
+| `src/lightbox.js` | Full-screen image viewer, keyboard navigation and prompt panel. |
+| `src/carousel.js` | Optional legacy inline carousel host. |
 | `src/commands.js` | `/storybook` slash command. |
 
 ---
@@ -56,10 +59,14 @@ On activation SillyTavern calls `init()` in `index.js`:
 5. `bindSettingsControls()` - binds inputs and renders current values.
 6. `bindActionButtons()` - wires the utility buttons.
 7. `registerCommands()` - registers `/storybook` if the parser is available.
-8. `initCarousel()` - binds delegated DOM handlers and bus listeners.
-9. `registerEvents()` - subscribes to SillyTavern events.
-10. `refreshSettingsUI()`, `updateStatusLabels()`, `updateStatsUI()`.
-11. A delayed `renderAll()` (400 ms) catches a chat that was already open.
+8. `initView()` - binds the delegated interaction handlers shared by both displays.
+9. `initLightbox()` - creates the viewer and its keyboard handlers.
+10. `initWindow()` - creates the floating window and button, restores the saved layout, and starts polling
+    for a chat that was already open when the extension activated.
+11. `initCarousel()` - binds the legacy inline carousel to bus events (renders only when `showInline`).
+12. `registerEvents()` - subscribes to SillyTavern events.
+13. `refreshSettingsUI()`, `updateStatusLabels()`, `updateStatsUI()`.
+14. A delayed `renderAll()` (400 ms) catches a chat that was already open.
 
 `BASE_URL` in `src/context.js` is derived from `import.meta.url`, so `settings.html` resolves regardless
 of the install folder name.
@@ -71,22 +78,28 @@ of the install folder name.
 ```
 index.js
   -> src/bus, src/context, src/defaults, src/settings, src/pipeline,
-     src/carousel, src/commands, src/backends/image, src/planner,
-     src/backends/planner, src/persistence
+     src/view, src/lightbox, src/window, src/carousel, src/commands,
+     src/backends/image, src/planner, src/backends/planner, src/persistence
 
 src/pipeline
   -> src/bus, src/context, src/settings, src/planner,
      src/backends/image, src/persistence
 
+src/window
+  -> src/bus, src/context, src/persistence, src/pipeline, src/view, src/lightbox
+
 src/carousel
-  -> src/bus, src/context, src/persistence, src/pipeline
+  -> src/bus, src/context, src/persistence, src/pipeline, src/view
+
+src/view
+  -> src/bus, src/context, src/persistence, src/pipeline, src/lightbox
 
 src/planner
   -> src/defaults, src/context, src/settings, src/backends/planner
 ```
 
 There are no circular imports that affect evaluation order. `settings.js` imports the context only,
-and the pipeline/carousel import settings one-way.
+and the pipeline/view/window modules import settings one-way.
 
 ---
 
@@ -107,6 +120,7 @@ Important fields:
 | `trigger` | `reply` \| `interval` \| `manual` | Trigger mode. |
 | `interval` | number | `N` for interval mode. |
 | `autoOnSwipe` | boolean | Illustrate new swipe variants. |
+| `showInline` | boolean | Show the legacy under-message carousel instead of relying only on the floating window. |
 | `openLightboxOnFinish` | boolean | Open viewer on completion. |
 | `size` | preset key | `portrait`, `landscape`, `square`, `st`. |
 | `saveToGallery` | boolean | Passed to `/imagine`. |
@@ -368,43 +382,71 @@ command is unavailable.
 
 ## 10. UI layer
 
-### 10.1 Rendering
+### 10.1 Shared view (`src/view.js`)
 
-`renderMessage(mesId)`:
+Both display modes render the same markup:
 
-- Finds `.mes[mesid="<id>"] .mes_block`; skips non-illustratable messages.
-- Ensures the per-message action button (`.storybook_gen`) exists.
-- Inserts a `.storybook-root` after `.mes_text`, replacing any previous root.
-- Binds image load/error state for the loading shimmer.
-
-`renderAll()` iterates rendered messages.
-
-`buildRoot()` renders the header (status, progress, expand/regenerate or cancel), an optional error banner,
-the scrollable frame track, navigation arrows, dots and the active caption.
-
-`resolveActive()` keeps a per-message active index, prefers the first pending frame while generating, then
-the first ready frame.
-
-### 10.2 Interaction
+- `buildStorybookView(mesId, storybook, { variant })` returns a `.storybook-root` with
+  `data-storybook-mes`, `data-storybook-variant` and `data-status`. It contains the status/progress header,
+  expand/regenerate or cancel actions, an optional error banner, the frame track, navigation arrows, dots and
+  the active caption.
+- `mountStorybookView(view, mesId)` inserts the view into a host element, binds image load/error state and
+  the track scroll listener, then centers the active frame.
+- The `activeIndex` map is module-scoped and shared by both hosts, so switching display modes keeps the frame.
+- `resolveActive()` prefers the first pending frame while generating, otherwise the first ready frame.
 
 All interaction is delegated from `document`:
 
-- `expand` -> `openLightbox`
+- `expand` / clicking a ready frame -> `openLightbox`
 - `regen` -> forced enqueue
 - `cancel` -> `cancelJob(mesId)`
-- `prev`/`next`/dots -> `applyActive`
-- clicking a ready frame -> `openLightbox`
+- `prev` / `next` / dots -> `applyActive` and `scrollTrackTo`
 
-The lightbox is lazily created once, supports header dragging, `Esc` to close, `←`/`→` to navigate, and a
-details block showing the image prompt.
+The scroll listener snaps the active index to the frame closest to the centre after a 90 ms debounce.
+`scrollTrackTo()` sets `track._storybookScrollLock` for 800 ms so the smooth programmatic scroll does not
+snap the active frame back.
 
-The track listens for scroll and snaps the active index to the frame closest to the centre (debounced
-90 ms).
+### 10.2 Floating window (`src/window.js`)
 
-### 10.3 Message action button
+The default display. Two elements are appended to `<body>`:
 
-`ensureMessageButton()` prepends a book button to `.extraMesButtons`. Its title and icon reflect whether a
-job is running, a storybook exists, or nothing exists yet. Forced enqueue happens on click.
+- `#storybook-window` - header (grip, title/subtitle, progress, prev/next, collapse, close), body, footer
+  (jump to message, clear) and a bottom-right resize handle. `z-index: 2000`.
+- `#storybook-fab` - floating book button shown when the window is closed. `z-index: 1999`.
+
+Behavior:
+
+- `opened` starts as `true`; the window opens automatically when a chat is rendered or loaded.
+- Selection order: the saved `storybook_window_selection[chatKey]` message id, then the storybook with the
+  newest `updatedAt`, then the last illustratable reply.
+- `chatKey()` uses `ctx.getCurrentChatId()`, or `unsaved:<send_date>` for a chat without a file yet.
+- The subtitle reads `Assistant · reply X of Y`, where `Y` counts illustratable replies, not all messages.
+- The empty state shows a clipped reply excerpt and an **Illustrate this reply** button (forced enqueue if a
+  storybook already exists).
+- Header drag and handle resize are pointer-capture based. `storybook_window_layout`
+  (`{left, top, width, height, collapsed}`) is saved in `localStorage` and clamped to the viewport on restore.
+- Collapsing hides the body/footer and keeps only the header.
+- `tick()` runs after 350 ms and then every 1200 ms. It detects a chat that was already open before the
+  extension activated, notices chat-key changes, and re-renders.
+- Bus events: `story:update`, `story:job`, `story:complete` (adds the FAB badge while closed).
+- SillyTavern events: `CHARACTER_MESSAGE_RENDERED`, `MESSAGE_SWIPED`, `MESSAGE_EDITED`, `MESSAGE_DELETED`,
+  `CHAT_LOADED`, `CHAT_CHANGED`.
+- `Escape` closes the window only when the lightbox is not open.
+- On screens narrower than 700 px the window becomes a bottom sheet.
+
+### 10.3 Legacy inline carousel (`src/carousel.js`)
+
+Only active when `settings.showInline` is true. `renderMessage(mesId)` finds `.mes[mesid] .mes_block` and
+inserts the shared view after `.mes_text`; `renderAll()` iterates rendered messages. The old per-message book
+button (`.storybook_gen`) is gone; `removeLegacyButtons()` cleans it up after an upgrade. The module listens
+for `story:update`, `story:job` and `story:settings` and skips stale storybooks.
+
+### 10.4 Lightbox (`src/lightbox.js`)
+
+A single lazily created `#storybook-lightbox` (`z-index: 5000`) shows the frame, title, caption and an
+expandable image-prompt panel. The header can be dragged, `Esc` closes, and `←`/`→` navigate. Its keyboard
+listener is registered before the window's listener and calls `stopImmediatePropagation()`, so closing the
+viewer with `Esc` never closes the window behind it.
 
 ---
 
@@ -418,6 +460,12 @@ job is running, a storybook exists, or nothing exists yet. Forced enqueue happen
 Caveat: SillyTavern's `saveChat` returns early for chats without a selected character or for the neutral
 chat, so artwork in such a chat is not persisted. Group chats go through `saveGroupChat` via
 `saveChatConditional`, which is supported.
+
+Browser-only UI state (never written into the chat):
+
+- `storybook_window_layout` - window position, size and collapsed flag.
+- `storybook_window_selection` - `{ [chatKey]: messageId }` for the window's selected reply.
+- `storybook_custom_api_key` - custom planner key (see §12).
 
 ---
 
@@ -438,12 +486,12 @@ chat, so artwork in such a chat is not persisted. Group chats go through `saveGr
 
 | Event | Payload | Consumers |
 | --- | --- | --- |
-| `story:update` | `{ mesId }` | Carousel re-render, stats |
-| `story:job` | job state | Carousel running indicators and message buttons |
+| `story:update` | `{ mesId }` | Window and carousel re-render, stats |
+| `story:job` | job state | Window/carousel running indicators |
 | `story:stats` | - | Reserved |
-| `story:complete` | `{ mesId }` | Reserved |
-| `story:open` | `{ mesId, index }` | Carousel viewer |
-| `story:settings` | `{ id, value }` | Status labels and stats in `index.js` |
+| `story:complete` | `{ mesId }` | Window re-render or FAB badge |
+| `story:open` | `{ mesId, index }` | Reserved |
+| `story:settings` | `{ id, value }` | Carousel visibility, status labels and stats in `index.js` |
 
 This is separate from SillyTavern's `eventSource`.
 
@@ -493,7 +541,7 @@ These behaviors are easy to get wrong, so they are documented here for future ch
 
 1. Update `DEFAULT_PLANNER_PROMPT` and `PLANNER_SCHEMA` together.
 2. Update `shapeKeyframes` to normalize any new fields.
-3. Update `carousel.js` rendering if the field is displayed.
+3. Update `src/view.js` rendering if the field is displayed.
 4. Bump `sourceHashFor`'s version marker so old storybooks regenerate.
 
 ### Add a new size preset
@@ -511,15 +559,21 @@ Before releasing:
 2. **Test the planner** returns JSON and **Test image generation** returns an image.
 3. Fresh single-character chat: the greeting gets a storybook exactly once.
 4. Reopen the same chat: no new images are generated.
-5. Normal reply with every-reply trigger: carousel renders and reaches `Ready`.
-6. Swipe: artwork follows the variant; a new variant is illustrated only when enabled.
-7. Edit the text: stale artwork is removed.
-8. Interval trigger with `N = 2`: frames appear on the 2nd and 4th replies.
-9. Switch chats mid-generation: job becomes `cancelled` and no artwork lands in the new chat.
-10. Failed regeneration keeps the previous images visible.
-11. `/storybook`, `/storybook force=true count=2`, and `/storybook cancel=true`.
-12. Create a group chat: every member greeting is illustrated.
-13. Reload and reopen a chat: carousel and captions are restored from disk.
+5. The floating window opens automatically and shows the newest storybook attached to the chat.
+6. Header arrows move between illustrated replies; the selection survives a reload.
+7. Drag, resize and collapse the window; close it, reopen it from the floating button, then reload and confirm
+   the layout is restored.
+8. Normal reply with every-reply trigger: the window renders and reaches `Ready`.
+9. Enable **Show the inline carousel under messages**: the under-message root appears. Disable it again: the
+   root disappears and the window remains.
+10. Swipe: artwork follows the variant; a new variant is illustrated only when enabled.
+11. Edit the text: stale artwork is removed.
+12. Interval trigger with `N = 2`: frames appear on the 2nd and 4th replies.
+13. Switch chats mid-generation: job becomes `cancelled` and no artwork lands in the new chat.
+14. Failed regeneration keeps the previous images visible.
+15. `/storybook`, `/storybook force=true count=2`, and `/storybook cancel=true`.
+16. Create a group chat: every member greeting is illustrated.
+17. Reload and reopen a chat: the window and captions are restored from disk and no old book buttons appear.
 
 ---
 

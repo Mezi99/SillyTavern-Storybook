@@ -52,6 +52,7 @@ export const defaultSettings = {
     interval: 3,
     autoOnSwipe: true,
     openLightboxOnFinish: false,
+    showInline: false,
     size: 'portrait',
     saveToGallery: false,
     include: {
