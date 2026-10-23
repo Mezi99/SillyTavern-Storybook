@@ -18,11 +18,13 @@ carousel can still show the artwork under each message.
 - **Legacy inline carousel**: optional under-message display with page dots and captions, off by default.
 - **Full-screen viewer**: click a frame to open it, navigate with `←` / `→`, and close with `Esc`.
 - **Reply navigation**: step through illustrated replies from the window header, jump back to the message, or toggle the window with the floating book button.
+- **Window toolbar**: **Illustrate/Regenerate**, **Stop** and **Remove** act on the reply currently selected in the window.
+- **Debug tools**: an optional, session-only panel with the planner request, raw planner response and final image prompts, plus a planner-only test action.
 - **Persistent and per-swipe**: artwork is stored on the message and on the active swipe variant, so it survives reloads and follows the variant it belongs to.
 - **Automatic invalidation**: edited or swiped-away text drops the old artwork instead of showing a mismatch.
 - **Trigger modes**: every reply, every N replies, or manual only.
 - **Character consistency**: a reusable character anchor plus optional character card fields keep faces and outfits stable across frames.
-- **Style profiles**: Default, Anime, Photorealistic and Painterly presets supply style tags and matching negatives; your own style is added on top.
+- **Style profiles**: Default, Anime, Photorealistic and Painterly presets supply image style tags, separate planner guidance and matching negatives; your own style is added on top.
 - **Safer prompts**: built-in illustration negatives always block text, watermarks, panels, collages and common anatomy artifacts.
 - **Planner choices**: use the SillyTavern chat API, or a separate OpenAI-compatible endpoint.
 - **Recovery from failures**: failed regenerations keep the previous artwork; a stopped job is marked as stopped rather than losing frames.
@@ -58,7 +60,7 @@ No build step and no external dependencies are required.
 2. Reload SillyTavern (hard refresh the browser).
 3. Open **Extensions** and find the **Storybook** drawer.
 4. Enable **Image Generation** in SillyTavern if you have not already, then configure a source and model.
-5. Use **Test the planner** and **Test image generation** in the Storybook drawer to confirm both halves work.
+5. Use **Test image generation** in the Storybook drawer to confirm image generation works. To test the planner, enable **Show debug tools in the floating window**, then use **Debug -> Test planner**.
 
 ---
 
@@ -68,7 +70,7 @@ No build step and no external dependencies are required.
 2. In the Storybook drawer, set **Generate when** to *Every assistant reply*.
 3. Optionally add a **Character anchor** such as `young woman, shoulder-length black hair, green eyes, grey coat`.
 4. Send a message. The floating Storybook window appears and fills with frames as they render.
-5. Click any finished frame to open the viewer. Use the refresh action in the window to regenerate, or the floating book button to hide and reopen the window.
+5. Click any finished frame to open the viewer. Use the window toolbar to regenerate or remove the current reply, or the floating book button to hide and reopen the window.
 
 ---
 
@@ -80,13 +82,14 @@ No build step and no external dependencies are required.
 | Also illustrate new swipes | Render a storybook for each new swipe variant. |
 | Open the viewer when a storybook is ready | Opens the full-screen viewer when generation finishes. |
 | Show the inline carousel under messages | Use the legacy under-message display instead of the floating window. Off by default. |
+| Show debug tools in the floating window | Adds a **Debug** button with the planner request, raw response, final image prompts and a planner-only test. Session-only and off by default. |
 | Save generated images into the character gallery | Passes the gallery flag to SillyTavern Image Generation. |
 | Generate when | `Every assistant reply`, `Every N assistant replies`, or `Only when I ask`. |
 | Reply interval | The `N` used by the interval trigger. |
 | Keyframes per reply | Number of frames per storybook (1-6). |
 | Image size | Portrait 832x1216, Landscape 1216x832, Square 1024x1024, or follow the Image Generation settings. |
 | Character anchor | Reusable appearance string kept ahead of the scene in every image prompt. |
-| Style profile | Default, Anime, Photorealistic or Painterly. Supplies built-in style tags and negatives. |
+| Style profile | Default, Anime, Photorealistic or Painterly. Supplies built-in image style, planner guidance and negatives. |
 | Additional style | Your own style text, deduped and appended after the selected profile. |
 | Negative prompt | Extra things to avoid. Built-in illustration negatives are always applied. |
 | Previous messages given to the planner | How many earlier messages are included as context. |
@@ -95,15 +98,17 @@ No build step and no external dependencies are required.
 | Base URL / Model / API key / Temperature / Max tokens | Custom planner connection. The API key is stored only in this browser. |
 | Planner prompt | Overrides the built-in storyboard prompt. Leave empty to use the built-in one. |
 
-The drawer also contains utility buttons:
+The drawer also contains these utility buttons:
 
-- **Generate for the last reply**
-- **Stop the running job**
-- **Remove storybook from the last reply**
 - **Reset window position** (restores the floating window to its default size and location)
-- **Test the planner** (shows the returned JSON in the preview area)
 - **Test image generation**
-- **Show Image Generation settings**
+- **Show Image Generation settings** (opens the Extensions drawer and expands Image Generation)
+
+Generation actions live in the window toolbar and act on the selected reply:
+
+- **Illustrate** or **Regenerate**
+- **Stop** the running job for that reply
+- **Remove** the storybook from that reply
 
 ---
 
@@ -139,9 +144,11 @@ The command reports what it did, for example `Storybook generation started with 
 - The window opens automatically when a chat with an illustrated reply loads. For old chats it shows the newest storybook attached to that chat.
 - The header arrows move between illustratable replies. The selection is remembered per chat in the browser.
 - Drag the header to move the window, use the bottom-right handle to resize it, and use the chevron to collapse it to the header.
+- The toolbar under the header acts on the selected reply: **Illustrate/Regenerate**, **Stop** and **Remove**.
 - Closing the window leaves a floating book button on screen. Click it to reopen the window at the last position.
 - **Reset window position** in the settings drawer restores the default layout if the window ends up off-screen.
 - On narrow screens the window becomes a bottom sheet.
+- **Debug** is optional. Enable **Show debug tools in the floating window** in the drawer, then open **Debug** to inspect the planner request, raw response and final image prompts. **Test planner** runs only the planner and does not replace the current artwork. Traces stay in memory for this browser session.
 
 ---
 
@@ -157,15 +164,16 @@ both copies linked. This means:
 
 Nothing is written outside the chat file, except the custom planner API key and the window layout
 (`storybook_window_layout`) and per-chat selection (`storybook_window_selection`), which are kept in the
-browser's `localStorage`.
+browser's `localStorage`. Debug traces are kept only in memory and disappear when the page reloads.
 
 ---
 
 ## Troubleshooting
 
 **The planner fails or returns no JSON**
-Use **Test the planner**. Some models need a stricter prompt or a JSON-capable model. You can also
-point the planner at a different API with a model known to follow instructions.
+Enable **Show debug tools in the floating window**, open **Debug** and use **Test planner**. The
+request and raw response show what the model actually returned. Some models need a stricter prompt or a
+JSON-capable model; you can also point the planner at another API with a model known to follow instructions.
 
 **`The /imagine command is unavailable`**
 Enable SillyTavern's built-in Image Generation extension and configure a source and model once. The
@@ -201,6 +209,7 @@ src/
   carousel.js         Optional legacy inline carousel host
   commands.js         /storybook slash command
   context.js          SillyTavern context helpers, planner input, chat helpers
+  debug.js            Session-only planner/image debug traces
   defaults.js         Default settings, size presets, planner prompt and JSON schema
   lightbox.js         Full-screen image viewer
   persistence.js      Storybook storage, swipe mirroring, hashes, save helpers

@@ -138,7 +138,7 @@ export function buildPlannerInput(mesId, settings) {
     const profile = resolveStyleProfile(settings.styleProfile);
     const style = [
         profile.id === 'auto' ? '' : `Look: ${profile.label}`,
-        profile.styleText,
+        profile.plannerStyle,
         String(settings.styleText ?? '').trim() ? `Additional style: ${String(settings.styleText).trim()}` : '',
     ].filter(Boolean).join('\n');
 

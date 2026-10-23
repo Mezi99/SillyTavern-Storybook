@@ -32,6 +32,7 @@ For every keyframe produce:
 - title: 2 to 5 words.
 - caption: one short storybook sentence, narration for a reader, no quotation marks around dialogue.
 - imagePrompt: a self-contained English description for a text-to-image model. Name the subject, the action, the place, the light, the mood and the framing. Never write "as before", "in the previous image", "same character" or anything that depends on another frame.
+- imagePrompt must describe visible content only. Do not repeat the STYLE text, medium, quality tags, negative prompts or phrases such as "no text"; the extension appends style and negatives separately.
 
 Also produce:
 - characterAnchor: one reusable string, under 40 words, describing the main character's visible appearance in enough detail that repeating the same string keeps the face and outfit consistent. Use the same wording style as a character sheet: species or ethnicity, hair, eyes, build, clothing, notable marks.
@@ -55,6 +56,7 @@ export const defaultSettings = {
     autoOnSwipe: true,
     openLightboxOnFinish: false,
     showInline: false,
+    showDebugTools: false,
     size: 'portrait',
     saveToGallery: false,
     include: {

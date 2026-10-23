@@ -143,9 +143,11 @@ export function buildStorybookView(mesId, storybook, { variant = 'inline' } = {}
             <span class="storybook-spacer"></span>
             <div class="storybook-actions">
                 ${hasFrames ? '<button class="menu_button storybook-action storybook-expand" title="Open storybook viewer"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>' : ''}
-                ${isRunning
-                    ? '<button class="menu_button storybook-action storybook-cancel" title="Stop this storybook"><i class="fa-solid fa-stop"></i></button>'
-                    : '<button class="menu_button storybook-action storybook-regen" title="Regenerate this storybook"><i class="fa-solid fa-rotate"></i></button>'}
+                ${variant === 'inline'
+                    ? (isRunning
+                        ? '<button class="menu_button storybook-action storybook-cancel" title="Stop this storybook"><i class="fa-solid fa-stop"></i></button>'
+                        : '<button class="menu_button storybook-action storybook-regen" title="Regenerate this storybook"><i class="fa-solid fa-rotate"></i></button>')
+                    : ''}
             </div>
         </div>
         ${errorMessage ? `<div class="storybook-error"><i class="fa-solid fa-circle-exclamation"></i> ${escapeHtml(errorMessage)}</div>` : ''}

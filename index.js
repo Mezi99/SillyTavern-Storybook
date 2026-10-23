@@ -1,5 +1,5 @@
 import { STORY_EVENTS, emit, on } from './src/bus.js';
-import { getCtx, isIllustratable, lastAssistantMessageId, tryGetCtx } from './src/context.js';
+import { getCtx, isIllustratable, tryGetCtx } from './src/context.js';
 import { TRIGGERS } from './src/defaults.js';
 import {
     bindSettingsControls,
@@ -15,7 +15,7 @@ import { initLightbox } from './src/lightbox.js';
 import { initWindow, resetWindowLayout } from './src/window.js';
 import { registerCommands } from './src/commands.js';
 import { describeImageBackend, generateImage } from './src/backends/image.js';
-import { compileImagePrompt, planKeyframes } from './src/planner.js';
+import { compileImagePrompt } from './src/planner.js';
 import { describePlannerBackend } from './src/backends/planner.js';
 import { clearStorybook, getStorybook, isStorybookStale, saveNow } from './src/persistence.js';
 
@@ -156,28 +156,6 @@ function bindActionButtons() {
         });
     };
 
-    onClick('storybook_test_planner', async () => {
-        const mesId = lastAssistantMessageId();
-        if (mesId < 0) {
-            toast('warning', 'There is no assistant message to plan yet.');
-            return;
-        }
-        toast('info', 'Planning a storyboard...');
-        const plan = await planKeyframes({ mesId, count: getSettings().keyframes });
-        const preview = document.getElementById('storybook_preview');
-        if (preview) {
-            preview.textContent = JSON.stringify({
-                anchor: plan.anchor,
-                keyframes: plan.keyframes.map(frame => ({
-                    title: frame.title,
-                    caption: frame.caption,
-                    prompt: frame.prompt,
-                })),
-            }, null, 2);
-        }
-        toast('success', `Planner returned ${plan.keyframes.length} keyframes.`);
-    });
-
     onClick('storybook_test_image', async () => {
         const settings = getSettings();
         const prompt = compileImagePrompt({
@@ -205,41 +183,23 @@ function bindActionButtons() {
             toast('warning', 'The Image Generation extension is not available.');
             return;
         }
-        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        container.classList.add('storybook-highlight');
-        setTimeout(() => container.classList.remove('storybook-highlight'), 1600);
-    });
 
-    onClick('storybook_generate_last', () => {
-        const mesId = lastAssistantMessageId();
-        if (mesId < 0) {
-            toast('warning', 'There is no assistant message to illustrate yet.');
-            return;
+        const extensionsBlock = document.getElementById('rm_extensions_block');
+        if (extensionsBlock?.classList.contains('closedDrawer')) {
+            document.querySelector('#extensions-settings-button .drawer-toggle')?.click();
         }
-        enqueue(mesId, { force: true, reason: 'manual' });
-    });
 
-    onClick('storybook_cancel_job', () => {
-        cancelJob(null);
-    });
+        const drawer = container.querySelector('.sd_settings > .inline-drawer');
+        const content = drawer?.querySelector(':scope > .inline-drawer-content');
+        if (content && getComputedStyle(content).display === 'none') {
+            drawer.querySelector(':scope > .inline-drawer-header')?.click();
+        }
 
-    onClick('storybook_clear_last', () => {
-        const mesId = lastAssistantMessageId();
-        if (mesId < 0) {
-            return;
-        }
-        const ctx = getCtx();
-        const message = ctx.chat[mesId];
-        if (!message?.extra?.storybook) {
-            toast('info', 'That message has no storybook.');
-            return;
-        }
-        clearStorybook(message);
-        void saveNow();
-        renderMessage(mesId);
-        emit(STORY_EVENTS.UPDATE, { mesId });
-        updateStatsUI();
-        toast('info', 'Storybook removed from that message.');
+        setTimeout(() => {
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            container.classList.add('storybook-highlight');
+            setTimeout(() => container.classList.remove('storybook-highlight'), 1600);
+        }, 360);
     });
 
     onClick('storybook_reset_window', () => {

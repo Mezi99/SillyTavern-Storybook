@@ -7,6 +7,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.1.2] - 2026-10-23
+
+### Added
+
+- Window toolbar with **Illustrate/Regenerate**, **Stop** and **Remove** actions for the reply currently
+  selected in the floating window.
+- Optional **Show debug tools in the floating window** setting. The debug panel shows the planner request,
+  structured/plain/custom planner attempts, the shaped plan, and the exact image prompts, negatives and sizes,
+  with copy, clear and planner-only test actions.
+- Session-only debug traces keyed by chat and reply, capped at 20, never written into chat files or
+  `localStorage`.
+
+### Changed
+
+- Generation and removal actions moved from the settings drawer into the floating window and now target the
+  selected reply instead of always using the last message.
+- Style profiles now separate `imageStyle` for image prompts from `plannerStyle` for the planner's `STYLE`
+  block, so the planner cannot echo image style tags into the scene prompt.
+- Prompt composition drops style and negative echoes from the scene prompt and filters bare negative fragments
+  from the positive prompt while preserving the existing prompt cap.
+- **Show Image Generation settings** now opens the Extensions drawer and expands the Image Generation inline
+  drawer before scrolling to it.
+- README and Technical reference updated for the toolbar, debug panel and revised prompt composition.
+
+### Fixed
+
+- Duplicate style text and style tags in planner and image prompts.
+- Negative fragments such as `watermark` leaking out of the negative prompt and into the positive image prompt.
+- The floating window showing duplicate regenerate/cancel controls in addition to its toolbar.
+
+---
+
 ## [1.1.1] - 2026-10-23
 
 ### Added

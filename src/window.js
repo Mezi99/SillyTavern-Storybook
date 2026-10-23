@@ -1,9 +1,13 @@
 import { STORY_EVENTS, emit, on } from './bus.js';
 import { getMessage, getMessageText, isIllustratable, tryGetCtx } from './context.js';
 import { clearStorybook, getStorybook, isStorybookStale, saveNow } from './persistence.js';
-import { enqueue, getJobState } from './pipeline.js';
+import { cancelJob, enqueue, getJobState, isBusy } from './pipeline.js';
 import { buildStorybookView, mountStorybookView, progressLabel, statusLabel } from './view.js';
 import { isLightboxOpen } from './lightbox.js';
+import { getSettings } from './settings.js';
+import { planKeyframes } from './planner.js';
+import { buildImageRequest } from './backends/image.js';
+import { clearDebugTrace, getDebugTrace } from './debug.js';
 
 const WINDOW_ID = 'storybook-window';
 const FAB_ID = 'storybook-fab';
@@ -29,6 +33,9 @@ let selectedMesId = null;
 let selectedId = null;
 let lastChatKey = null;
 let layout = { ...DEFAULT_LAYOUT };
+let debugOpen = false;
+let debugTab = 'request';
+let debugBusy = false;
 
 function isMobileViewport() {
     return Boolean(window.matchMedia?.(MOBILE_QUERY).matches);
@@ -60,6 +67,15 @@ function chatKey() {
     } catch { /* not ready */ }
     const first = ctx?.chat?.[0];
     return `unsaved:${first?.send_date ?? first?.create_date ?? 'current'}`;
+}
+
+function debugChatId() {
+    const ctx = tryGetCtx();
+    try {
+        return String(ctx?.getCurrentChatId?.() ?? 'unsaved');
+    } catch {
+        return 'unsaved';
+    }
 }
 
 function readSelectionMap() {
@@ -273,6 +289,251 @@ function buildEmptyState(message) {
     return wrap;
 }
 
+function requestDebugText(trace) {
+    if (!trace?.request) {
+        return 'No planner request recorded for this reply yet.\n\nUse "Test planner" to run one without generating images.';
+    }
+    const meta = trace.request.meta ?? {};
+    const lines = [
+        `Backend: ${meta.backend ?? 'st'}`,
+        `API: ${meta.api ?? ''}`,
+        meta.model ? `Model: ${meta.model}` : '',
+        `Keyframes: ${meta.count ?? ''}`,
+        `Response length: ${meta.responseLength ?? ''}`,
+        `Structured JSON: ${meta.useSchema ? 'yes' : 'no'}`,
+        '',
+        'SYSTEM PROMPT',
+        trace.request.systemPrompt,
+        '',
+        'USER PROMPT',
+        trace.request.userPrompt,
+    ];
+    return lines.filter(line => line !== '').join('\n');
+}
+
+function responseDebugText(trace) {
+    if (!trace) {
+        return 'No planner response recorded for this reply yet.';
+    }
+    const lines = [];
+    if (trace.attempts.length) {
+        trace.attempts.forEach((attempt, index) => {
+            lines.push(`ATTEMPT ${index + 1} · ${attempt.kind} · parsed=${attempt.parsed ? 'yes' : 'no'}`);
+            if (attempt.error) {
+                lines.push(`ERROR: ${attempt.error}`);
+            }
+            lines.push(attempt.raw || '(empty response)', '');
+        });
+    } else {
+        lines.push('No planner response recorded.', '');
+    }
+    if (trace.errors.length) {
+        lines.push('ERRORS');
+        for (const error of trace.errors) {
+            lines.push(error.message);
+        }
+        lines.push('');
+    }
+    if (trace.plan) {
+        lines.push('SHAPED PLAN');
+        lines.push(JSON.stringify({
+            anchor: trace.plan.anchor,
+            keyframes: trace.plan.frames.map(frame => ({
+                index: frame.i + 1,
+                title: frame.title,
+                caption: frame.caption,
+                imagePrompt: frame.imagePrompt,
+                compiledPrompt: frame.prompt,
+            })),
+        }, null, 2));
+    }
+    return lines.join('\n').trim();
+}
+
+function imagePromptDebugText(trace) {
+    const frames = trace?.plan?.frames ?? [];
+    if (!frames.length) {
+        return 'No compiled image prompts recorded for this reply yet.';
+    }
+    const imageRequests = new Map((trace.images ?? []).map(image => [image.frameIndex, image]));
+    const lines = [];
+    frames.forEach((frame, index) => {
+        const detail = trace.plan.promptDetails?.[index] ?? null;
+        const request = imageRequests.get(index) ?? buildImageRequest({ prompt: frame.prompt });
+        lines.push(`FRAME ${index + 1}${frame.title ? ` · ${frame.title}` : ''}`);
+        lines.push(`RAW SCENE\n${frame.imagePrompt || '(none)'}`);
+        lines.push(`FINAL PROMPT (${request.prompt.length} chars)\n${request.prompt}`);
+        lines.push(`NEGATIVE (${request.negative.length} chars)\n${request.negative || '(none)'}`);
+        lines.push(`SIZE\n${request.width && request.height ? `${request.width} x ${request.height}` : 'SillyTavern default'}`);
+        if (detail) {
+            const truncated = Object.entries(detail.truncated ?? {})
+                .filter(([, value]) => value)
+                .map(([key]) => key);
+            if (truncated.length) {
+                lines.push(`TRUNCATED\n${truncated.join(', ')}`);
+            }
+            if (detail.dropped?.scene?.length) {
+                lines.push(`DROPPED STYLE/NEGATIVE ECHOES\n${detail.dropped.scene.join('\n')}`);
+            }
+        }
+        lines.push('');
+    });
+    return lines.join('\n').trim();
+}
+
+function debugTextFor(trace) {
+    if (debugTab === 'response') {
+        return responseDebugText(trace);
+    }
+    if (debugTab === 'image') {
+        return imagePromptDebugText(trace);
+    }
+    return requestDebugText(trace);
+}
+
+function currentDebugTrace() {
+    if (!Number.isInteger(selectedMesId)) {
+        return null;
+    }
+    return getDebugTrace(debugChatId(), selectedMesId);
+}
+
+async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        toast('success', 'Debug text copied.');
+        return;
+    } catch { /* fall through to the legacy path */ }
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    try {
+        document.execCommand('copy');
+        toast('success', 'Debug text copied.');
+    } catch {
+        toast('error', 'Could not copy the debug text.');
+    }
+    area.remove();
+}
+
+function renderDebug() {
+    const panel = document.getElementById('storybook-debug');
+    if (!panel) {
+        return;
+    }
+    const enabled = Boolean(getSettings().showDebugTools);
+    if (!enabled) {
+        debugOpen = false;
+    }
+    const visible = enabled && debugOpen;
+    panel.classList.toggle('is-hidden', !visible);
+    if (!visible) {
+        panel.innerHTML = '';
+        return;
+    }
+
+    const trace = currentDebugTrace();
+    panel.innerHTML = `
+        <div class="storybook-debug-header">
+            <span class="storybook-debug-title"><i class="fa-solid fa-bug"></i> Debug</span>
+            <span class="storybook-debug-meta"></span>
+            <span class="storybook-spacer"></span>
+            <button class="storybook-debug-action" data-debug-action="copy" title="Copy this section">Copy</button>
+            <button class="storybook-debug-action" data-debug-action="test" title="Run the planner for this reply">Test planner</button>
+            <button class="storybook-debug-action" data-debug-action="clear" title="Clear debug data for this reply">Clear</button>
+            <button class="storybook-debug-action" data-debug-action="close" title="Close debug"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="storybook-debug-tabs">
+            <button class="storybook-debug-tab" data-debug-tab="request">Planner request</button>
+            <button class="storybook-debug-tab" data-debug-tab="response">Planner response</button>
+            <button class="storybook-debug-tab" data-debug-tab="image">Image prompts</button>
+        </div>
+        <pre class="storybook-debug-output"></pre>`;
+
+    const meta = panel.querySelector('.storybook-debug-meta');
+    if (meta) {
+        const reply = Number.isInteger(selectedMesId) ? `reply ${selectedMesId + 1}` : 'no reply';
+        const frameCount = trace?.plan?.frames?.length ?? 0;
+        meta.textContent = `${reply}${frameCount ? ` · ${frameCount} frame${frameCount === 1 ? '' : 's'}` : ''}`;
+    }
+    panel.querySelectorAll('.storybook-debug-tab').forEach(tab => {
+        tab.classList.toggle('is-active', tab.dataset.debugTab === debugTab);
+    });
+    const test = panel.querySelector('[data-debug-action="test"]');
+    if (test) {
+        test.disabled = debugBusy || !Number.isInteger(selectedMesId);
+        test.textContent = debugBusy ? 'Planning...' : 'Test planner';
+    }
+    const output = panel.querySelector('.storybook-debug-output');
+    if (output) {
+        output.textContent = debugTextFor(trace);
+    }
+}
+
+function renderToolbar(storybook) {
+    const generate = document.querySelector('.storybook-window-generate');
+    const stop = document.querySelector('.storybook-window-stop');
+    const remove = document.querySelector('.storybook-window-remove');
+    const debug = document.querySelector('.storybook-window-debug');
+    if (!generate || !stop || !remove || !debug) {
+        return;
+    }
+    const hasSelection = Number.isInteger(selectedMesId) && isIllustratable(getMessage(selectedMesId));
+    const busy = hasSelection && isBusy(selectedMesId);
+    generate.disabled = !hasSelection || busy;
+    generate.querySelector('span').textContent = storybook ? 'Regenerate' : 'Illustrate';
+    generate.title = storybook ? 'Regenerate this reply' : 'Illustrate this reply';
+    stop.disabled = !busy;
+    remove.disabled = !storybook || busy;
+    const showDebug = Boolean(getSettings().showDebugTools);
+    if (!showDebug) {
+        debugOpen = false;
+    }
+    debug.classList.toggle('is-hidden', !showDebug);
+    debug.classList.toggle('is-active', debugOpen);
+}
+
+function stopSelected() {
+    if (!Number.isInteger(selectedMesId)) {
+        return;
+    }
+    cancelJob(selectedMesId);
+    render();
+}
+
+function toggleDebug() {
+    if (!getSettings().showDebugTools) {
+        return;
+    }
+    debugOpen = !debugOpen;
+    const message = Number.isInteger(selectedMesId) ? getMessage(selectedMesId) : null;
+    const storybook = message && isUsableStorybook(message) ? getStorybook(message) : null;
+    renderDebug();
+    renderToolbar(storybook);
+}
+
+async function runDebugPlanner() {
+    if (debugBusy || !Number.isInteger(selectedMesId)) {
+        return;
+    }
+    debugBusy = true;
+    debugTab = 'response';
+    renderDebug();
+    toast('info', 'Planning a storybook...');
+    try {
+        const plan = await planKeyframes({ mesId: selectedMesId, count: getSettings().keyframes });
+        toast('success', `Planner returned ${plan.keyframes.length} keyframes.`);
+    } catch (err) {
+        toast('error', String(err?.message ?? err));
+    } finally {
+        debugBusy = false;
+        renderDebug();
+    }
+}
+
 function render() {
     const windowEl = document.getElementById(WINDOW_ID);
     if (!windowEl) {
@@ -313,10 +574,6 @@ function render() {
         next.disabled = position < 0 || position >= ids.length - 1;
     }
 
-    const clear = windowEl.querySelector('.storybook-window-clear');
-    if (clear) {
-        clear.disabled = !getStorybook(message);
-    }
     const jumpLabel = windowEl.querySelector('.storybook-window-jump span');
     if (jumpLabel) {
         jumpLabel.textContent = `Reply ${selectedMesId + 1}`;
@@ -336,6 +593,8 @@ function render() {
     }
 
     const job = getJobState();
+    renderToolbar(storybook);
+    renderDebug();
     windowEl.classList.toggle('is-running', job.mesId === selectedMesId && job.state !== 'idle');
     syncVisibility();
 }
@@ -510,13 +769,28 @@ function ensureDom() {
             <button class="storybook-window-action storybook-window-collapse" title="Collapse"><i class="fa-solid fa-chevron-down"></i></button>
             <button class="storybook-window-action storybook-window-close" title="Close"><i class="fa-solid fa-xmark"></i></button>
         </div>
+        <div class="storybook-window-toolbar">
+            <button class="storybook-window-tool storybook-window-generate" title="Illustrate this reply">
+                <i class="fa-solid fa-wand-magic-sparkles"></i><span>Illustrate</span>
+            </button>
+            <button class="storybook-window-tool storybook-window-stop" title="Stop this job" disabled>
+                <i class="fa-solid fa-stop"></i><span>Stop</span>
+            </button>
+            <button class="storybook-window-tool storybook-window-remove" title="Remove this storybook" disabled>
+                <i class="fa-solid fa-eraser"></i><span>Remove</span>
+            </button>
+            <span class="storybook-spacer"></span>
+            <button class="storybook-window-tool storybook-window-debug is-hidden" title="Open debug tools">
+                <i class="fa-solid fa-bug"></i><span>Debug</span>
+            </button>
+        </div>
+        <div class="storybook-window-debug is-hidden" id="storybook-debug"></div>
         <div class="storybook-window-body"></div>
         <div class="storybook-window-footer">
             <button class="storybook-window-link storybook-window-jump" title="Scroll to this message">
                 <i class="fa-solid fa-location-dot"></i> <span>Reply</span>
             </button>
             <span class="storybook-spacer"></span>
-            <button class="storybook-window-action storybook-window-clear" title="Remove this storybook"><i class="fa-solid fa-eraser"></i></button>
         </div>
         <div class="storybook-window-resize" title="Resize"></div>`;
     document.body.appendChild(windowEl);
@@ -538,7 +812,33 @@ function ensureDom() {
     windowEl.querySelector('.storybook-window-prev')?.addEventListener('click', () => stepSelection(-1));
     windowEl.querySelector('.storybook-window-next')?.addEventListener('click', () => stepSelection(1));
     windowEl.querySelector('.storybook-window-jump')?.addEventListener('click', jumpToSelected);
-    windowEl.querySelector('.storybook-window-clear')?.addEventListener('click', clearSelected);
+    windowEl.querySelector('.storybook-window-generate')?.addEventListener('click', generateSelected);
+    windowEl.querySelector('.storybook-window-stop')?.addEventListener('click', stopSelected);
+    windowEl.querySelector('.storybook-window-remove')?.addEventListener('click', clearSelected);
+    windowEl.querySelector('.storybook-window-debug')?.addEventListener('click', toggleDebug);
+    windowEl.querySelector('#storybook-debug')?.addEventListener('click', event => {
+        const tab = event.target.closest?.('[data-debug-tab]');
+        if (tab) {
+            debugTab = tab.dataset.debugTab;
+            renderDebug();
+            return;
+        }
+        const action = event.target.closest?.('[data-debug-action]')?.dataset.debugAction;
+        if (action === 'close') {
+            debugOpen = false;
+            render();
+        } else if (action === 'copy') {
+            copyText(debugTextFor(currentDebugTrace()));
+        } else if (action === 'test') {
+            runDebugPlanner();
+        } else if (action === 'clear') {
+            if (Number.isInteger(selectedMesId)) {
+                clearDebugTrace(debugChatId(), selectedMesId);
+                toast('info', 'Debug data cleared for this reply.');
+            }
+            renderDebug();
+        }
+    });
     fab.addEventListener('click', toggleWindow);
 
     bindDrag(windowEl, windowEl.querySelector('.storybook-window-header'));
@@ -689,6 +989,21 @@ function bindBus() {
             return;
         }
         document.getElementById(FAB_ID)?.classList.add('has-update');
+    });
+
+    on(STORY_EVENTS.DEBUG, () => {
+        if (opened && debugOpen) {
+            render();
+        }
+    });
+
+    on(STORY_EVENTS.SETTINGS, payload => {
+        if (!getSettings().showDebugTools) {
+            debugOpen = false;
+        }
+        if (opened && (payload?.id === 'storybook_show_debug_tools' || payload?.id === undefined)) {
+            render();
+        }
     });
 }
 

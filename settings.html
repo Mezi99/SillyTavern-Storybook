@@ -38,6 +38,11 @@
                     <span>Also show the storybook under each message (legacy)</span>
                     <i class="fa-solid fa-info-circle" title="Keeps the older inline carousel in addition to the floating window."></i>
                 </label>
+                <label class="checkbox_label" for="storybook_show_debug_tools">
+                    <input id="storybook_show_debug_tools" type="checkbox" class="checkbox">
+                    <span>Show debug tools in the floating window</span>
+                    <i class="fa-solid fa-info-circle" title="Adds a Debug menu with the planner request, raw response and final image prompts. Traces are kept for this browser session only."></i>
+                </label>
                 <div id="storybook_reset_window" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-arrows-up-down-left-right"></i> Reset floating window position</div>
             </div>
 
@@ -183,10 +188,6 @@
             </div>
 
             <div class="flex-container flexFlowColumn wide100p storybook-actions">
-                <div id="storybook_generate_last" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate for the last reply</div>
-                <div id="storybook_cancel_job" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-stop"></i> Stop the running job</div>
-                <div id="storybook_clear_last" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-eraser"></i> Remove storybook from the last reply</div>
-                <div id="storybook_test_planner" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-list-ol"></i> Test the planner</div>
                 <div id="storybook_test_image" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-image"></i> Test image generation</div>
                 <div id="storybook_show_sd" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-gear"></i> Show Image Generation settings</div>
             </div>

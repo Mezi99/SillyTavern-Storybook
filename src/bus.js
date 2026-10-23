@@ -29,4 +29,5 @@ export const STORY_EVENTS = {
     COMPLETE: 'story:complete',
     OPEN: 'story:open',
     SETTINGS: 'story:settings',
+    DEBUG: 'story:debug',
 };
