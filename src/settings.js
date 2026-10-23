@@ -156,6 +156,7 @@ export function bindSettingsControls() {
     bindInput('storybook_context_messages', (s, v) => s.contextMessages = Math.min(10, Math.max(0, Number(v) || 0)));
 
     bindInput('storybook_anchor', (s, v) => s.anchor = v);
+    bindInput('storybook_style_profile', (s, v) => s.styleProfile = v);
     bindInput('storybook_style_text', (s, v) => s.styleText = v);
     bindInput('storybook_negative', (s, v) => s.negative = v);
     bindInput('storybook_planner_prompt', (s, v) => s.plannerPrompt = v);
@@ -249,6 +250,7 @@ export function refreshSettingsUI() {
     setValue('storybook_context_messages', settings.contextMessages);
 
     setText('storybook_anchor', settings.anchor);
+    setValue('storybook_style_profile', settings.styleProfile);
     setText('storybook_style_text', settings.styleText);
     setText('storybook_negative', settings.negative);
     setText('storybook_planner_prompt', settings.plannerPrompt);

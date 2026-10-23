@@ -22,6 +22,8 @@ carousel can still show the artwork under each message.
 - **Automatic invalidation**: edited or swiped-away text drops the old artwork instead of showing a mismatch.
 - **Trigger modes**: every reply, every N replies, or manual only.
 - **Character consistency**: a reusable character anchor plus optional character card fields keep faces and outfits stable across frames.
+- **Style profiles**: Default, Anime, Photorealistic and Painterly presets supply style tags and matching negatives; your own style is added on top.
+- **Safer prompts**: built-in illustration negatives always block text, watermarks, panels, collages and common anatomy artifacts.
 - **Planner choices**: use the SillyTavern chat API, or a separate OpenAI-compatible endpoint.
 - **Recovery from failures**: failed regenerations keep the previous artwork; a stopped job is marked as stopped rather than losing frames.
 - **Privacy**: the custom planner API key never leaves the browser and is not written into the chat or settings file.
@@ -83,9 +85,10 @@ No build step and no external dependencies are required.
 | Reply interval | The `N` used by the interval trigger. |
 | Keyframes per reply | Number of frames per storybook (1-6). |
 | Image size | Portrait 832x1216, Landscape 1216x832, Square 1024x1024, or follow the Image Generation settings. |
-| Character anchor | Reusable appearance string placed at the front of every image prompt. |
-| Style | Global look and feel prepended to every image prompt. |
-| Negative prompt | Appended to every generation request. |
+| Character anchor | Reusable appearance string kept ahead of the scene in every image prompt. |
+| Style profile | Default, Anime, Photorealistic or Painterly. Supplies built-in style tags and negatives. |
+| Additional style | Your own style text, deduped and appended after the selected profile. |
+| Negative prompt | Extra things to avoid. Built-in illustration negatives are always applied. |
 | Previous messages given to the planner | How many earlier messages are included as context. |
 | Character card fields | Include description, personality, scenario and user persona in the planner input. |
 | Storyboard planner | SillyTavern chat API or a custom OpenAI-compatible API. |
@@ -204,6 +207,7 @@ src/
   pipeline.js         Job queue, generation pipeline, cancellation, dedup
   planner.js          Storyboard planning and prompt compilation
   settings.js         Settings storage/binding, custom API key, stats
+  styles.js           Style profiles, prompt dedupe/composition and negative merging
   view.js             Shared storybook rendering and navigation handlers
   window.js           Floating Storybook window, floating button and layout persistence
   backends/

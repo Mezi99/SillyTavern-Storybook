@@ -60,15 +60,16 @@ export function mirrorToSwipe(message, value = message?.extra?.storybook) {
     entry.extra.storybook = value;
 }
 
-export function sourceHashFor({ text, count, styleText, anchor, plannerPrompt, size }) {
+export function sourceHashFor({ text, count, styleProfile, styleText, anchor, plannerPrompt, size }) {
     return hashString([
         text,
         count,
+        styleProfile ?? '',
         styleText ?? '',
         anchor ?? '',
         plannerPrompt ?? '',
         size ?? '',
-        'v1',
+        'v2',
     ].join('\u0001'));
 }
 

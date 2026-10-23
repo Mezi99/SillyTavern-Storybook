@@ -15,7 +15,7 @@ import { initLightbox } from './src/lightbox.js';
 import { initWindow, resetWindowLayout } from './src/window.js';
 import { registerCommands } from './src/commands.js';
 import { describeImageBackend, generateImage } from './src/backends/image.js';
-import { planKeyframes } from './src/planner.js';
+import { compileImagePrompt, planKeyframes } from './src/planner.js';
 import { describePlannerBackend } from './src/backends/planner.js';
 import { clearStorybook, getStorybook, isStorybookStale, saveNow } from './src/persistence.js';
 
@@ -180,11 +180,12 @@ function bindActionButtons() {
 
     onClick('storybook_test_image', async () => {
         const settings = getSettings();
-        const prompt = [
-            settings.styleText,
-            settings.anchor,
-            'A calm storybook illustration of a quiet moment, soft light, painterly.',
-        ].filter(part => String(part ?? '').trim()).join(', ');
+        const prompt = compileImagePrompt({
+            imagePrompt: 'A calm storybook illustration of a quiet moment, soft light, painterly.',
+            anchor: settings.anchor,
+            styleText: settings.styleText,
+            styleProfile: settings.styleProfile,
+        });
         toast('info', 'Generating a test image...');
         const result = await generateImage({ prompt });
         const preview = document.getElementById('storybook_preview');

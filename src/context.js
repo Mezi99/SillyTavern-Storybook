@@ -1,4 +1,5 @@
 import { SIZE_PRESETS } from './defaults.js';
+import { resolveStyleProfile } from './styles.js';
 
 export const BASE_URL = new URL('../', import.meta.url).href.replace(/\/+$/, '');
 
@@ -134,6 +135,12 @@ export function buildPlannerInput(mesId, settings) {
     }
 
     const persona = include.persona ? clip(fields.persona, MAX_FIELD.persona) : '';
+    const profile = resolveStyleProfile(settings.styleProfile);
+    const style = [
+        profile.id === 'auto' ? '' : `Look: ${profile.label}`,
+        profile.styleText,
+        String(settings.styleText ?? '').trim() ? `Additional style: ${String(settings.styleText).trim()}` : '',
+    ].filter(Boolean).join('\n');
 
     return {
         targetName,
@@ -143,11 +150,15 @@ export function buildPlannerInput(mesId, settings) {
         character: character.join('\n'),
         personaName: String(ctx.name1 ?? ''),
         persona,
+        style,
     };
 }
 
 export function buildUserPrompt(input) {
     const blocks = [];
+    if (input.style) {
+        blocks.push(`STYLE\n${input.style}`);
+    }
     if (input.contextLines.length) {
         blocks.push(`CONTEXT\n${input.contextLines.join('\n')}`);
     }

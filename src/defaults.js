@@ -1,6 +1,8 @@
 export const MODULE_NAME = 'Storybook';
 export const SETTINGS_KEY = 'storybook';
 
+export const DEFAULT_NEGATIVE_PROMPT = 'text, letters, captions, subtitles, UI, watermark, logo, signature, speech bubble, split screen, panel, collage, contact sheet, character sheet, grid, multiple views, four images, duplicated face, extra head, extra limbs, extra digits, bad anatomy, poorly drawn hands, deformed, low quality, blurry, jpeg artifacts';
+
 export const SIZE_PRESETS = {
     portrait: { width: 832, height: 1216, label: 'Portrait 832 x 1216' },
     landscape: { width: 1216, height: 832, label: 'Landscape 1216 x 832' },
@@ -63,6 +65,7 @@ export const defaultSettings = {
     },
     contextMessages: 2,
     anchor: '',
+    styleProfile: 'auto',
     styleText: '',
     negative: '',
     plannerPrompt: '',

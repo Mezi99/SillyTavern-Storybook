@@ -81,13 +81,24 @@
             </div>
 
             <div class="flex-container flexFlowColumn wide100p">
-                <label for="storybook_style_text">Style</label>
-                <textarea id="storybook_style_text" class="text_pole textarea_compact autoSetHeight" rows="2" placeholder="Optional. Overall look, e.g. soft watercolor storybook illustration."></textarea>
+                <label for="storybook_style_profile">Style profile</label>
+                <select id="storybook_style_profile" class="text_pole">
+                    <option value="auto">Default</option>
+                    <option value="anime">Anime</option>
+                    <option value="photorealistic">Photorealistic</option>
+                    <option value="painterly">Painterly</option>
+                </select>
+                <small>Built-in style tags and negatives for the selected look.</small>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_style_text">Additional style</label>
+                <textarea id="storybook_style_text" class="text_pole textarea_compact autoSetHeight" rows="2" placeholder="Optional. Appended to the selected style profile, e.g. moonlit palette, soft watercolor edges."></textarea>
             </div>
 
             <div class="flex-container flexFlowColumn wide100p">
                 <label for="storybook_negative">Negative prompt</label>
-                <textarea id="storybook_negative" class="text_pole textarea_compact autoSetHeight" rows="1" placeholder="Optional. Things to avoid in every frame."></textarea>
+                <textarea id="storybook_negative" class="text_pole textarea_compact autoSetHeight" rows="1" placeholder="Optional. Extra things to avoid; built-in illustration negatives are always applied."></textarea>
             </div>
 
             <hr>

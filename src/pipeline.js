@@ -143,6 +143,7 @@ async function runJob(job) {
     const hash = sourceHashFor({
         text,
         count: plannedCount,
+        styleProfile: settings.styleProfile,
         styleText: settings.styleText,
         anchor: settings.anchor,
         plannerPrompt: settings.plannerPrompt,
@@ -187,6 +188,7 @@ async function runJob(job) {
         settings: {
             count: plannedCount,
             size: settings.size,
+            styleProfile: settings.styleProfile ?? 'auto',
             styleText: settings.styleText ?? '',
             negative: settings.negative ?? '',
         },

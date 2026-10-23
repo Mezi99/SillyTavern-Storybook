@@ -1,5 +1,7 @@
+import { DEFAULT_NEGATIVE_PROMPT } from '../defaults.js';
 import { getCtx, resolveSize, tryGetCtx } from '../context.js';
 import { getSettings } from '../settings.js';
+import { mergeNegatives, resolveStyleProfile } from '../styles.js';
 
 function abortError() {
     const err = new Error('Storybook generation cancelled');
@@ -49,15 +51,15 @@ export async function generateImage({ prompt, negative, signal }) {
         _abortController: controller,
     };
 
-    const negativeParts = [];
-    if (settings.negative) {
-        negativeParts.push(settings.negative);
-    }
-    if (negative) {
-        negativeParts.push(negative);
-    }
-    if (negativeParts.length) {
-        args.negative = negativeParts.join(', ');
+    const profile = resolveStyleProfile(settings.styleProfile);
+    const mergedNegative = mergeNegatives([
+        DEFAULT_NEGATIVE_PROMPT,
+        profile.negativeTags,
+        settings.negative,
+        negative,
+    ]);
+    if (mergedNegative) {
+        args.negative = mergedNegative;
     }
 
     const size = resolveSize(settings);

@@ -7,6 +7,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.1.1] - 2026-10-23
+
+### Added
+
+- Built-in style profiles: **Default**, **Anime**, **Photorealistic** and **Painterly**. Each supplies
+  style tags, illustration subject tags, style text and matching negatives. Default is selected out of
+  the box and adds no positive quality tags.
+- Always-on illustration negatives covering text, captions, UI, watermarks, panels, collages, grids,
+  duplicated or extra anatomy, low quality and blur.
+
+### Changed
+
+- The planner now receives a `STYLE` block built from the selected profile and the additional style.
+- Image prompts are composed as profile tags, profile subject tags, profile style text, additional user
+  style, character anchor and frame prompt, then capped at 1500 characters while protecting the style and
+  anchor.
+- Additional user style is deduped against the selected profile before being appended.
+- The storybook settings snapshot and `sourceHash` now include `styleProfile`, invalidating old prompt
+  compilations.
+- The settings drawer labels the freeform field **Additional style** and adds a **Style profile** dropdown.
+- README and Technical reference updated for style profiles and prompt composition.
+
+### Fixed
+
+- Character anchors are no longer duplicated when the planner already included the anchor in a frame's
+  image prompt.
+
+---
+
 ## [1.1.0] - 2026-10-22
 
 ### Added

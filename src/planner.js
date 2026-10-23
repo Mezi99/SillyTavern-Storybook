@@ -2,6 +2,7 @@ import { PLANNER_SCHEMA } from './defaults.js';
 import { buildPlannerInput, buildUserPrompt, getCtx } from './context.js';
 import { countForSettings, getPlannerPrompt, getSettings, sessionStats } from './settings.js';
 import { requestCustomPlan } from './backends/planner.js';
+import { composeStyledPrompt, resolveStyleProfile } from './styles.js';
 
 function parseJsonCandidate(text) {
     if (typeof text !== 'string') {
@@ -89,19 +90,15 @@ function cleanString(value, max = 400) {
     return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-export function compileImagePrompt({ imagePrompt, anchor, styleText }) {
+export function compileImagePrompt({ imagePrompt, anchor, styleText, styleProfile }) {
     const ctx = getCtx();
-    const parts = [];
-    const style = cleanString(ctx.substituteParams(styleText ?? ''), 500);
-    if (style) {
-        parts.push(style.replace(/,+$/, ''));
-    }
-    const character = cleanString(ctx.substituteParams(anchor ?? ''), 500);
-    if (character) {
-        parts.push(character.replace(/,+$/, ''));
-    }
-    parts.push(cleanString(imagePrompt, 900));
-    return parts.filter(Boolean).join(', ');
+    return composeStyledPrompt({
+        profile: resolveStyleProfile(styleProfile),
+        userStyle: cleanString(ctx.substituteParams(styleText ?? ''), 500),
+        anchor: cleanString(ctx.substituteParams(anchor ?? ''), 500),
+        imagePrompt: cleanString(imagePrompt, 900),
+        maxChars: 1500,
+    });
 }
 
 function shapeKeyframes(data, count, input, settings) {
@@ -124,6 +121,7 @@ function shapeKeyframes(data, count, input, settings) {
 
     const anchor = String(settings.anchor ?? '').trim() || cleanString(data.characterAnchor, 500);
     const styleText = settings.styleText ?? '';
+    const styleProfile = settings.styleProfile ?? 'auto';
 
     return {
         anchor,
@@ -131,7 +129,7 @@ function shapeKeyframes(data, count, input, settings) {
             i: position,
             title: item.title || `Frame ${position + 1}`,
             caption: item.caption,
-            prompt: compileImagePrompt({ imagePrompt: item.imagePrompt, anchor, styleText }),
+            prompt: compileImagePrompt({ imagePrompt: item.imagePrompt, anchor, styleText, styleProfile }),
             rawImagePrompt: item.imagePrompt,
             status: 'pending',
             url: '',

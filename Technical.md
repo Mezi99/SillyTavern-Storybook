@@ -1,7 +1,7 @@
 # Storybook - Technical Reference
 
 This document describes how the extension is built, how it talks to SillyTavern, and what to watch
-out for when maintaining it. It targets version **1.1.0**.
+out for when maintaining it. It targets version **1.1.1**.
 
 ---
 
@@ -27,6 +27,7 @@ out for when maintaining it. It targets version **1.1.0**.
 | `src/context.js` | Context access, chat helpers, planner input assembly, hashing, size resolution. |
 | `src/defaults.js` | Default settings, `MODULE_NAME`, `SETTINGS_KEY`, size presets, trigger enum, built-in prompt, JSON schema. |
 | `src/settings.js` | Settings load/merge/save, UI binding, stats, custom API key. |
+| `src/styles.js` | Built-in style profiles, prompt fragment dedupe, prompt composition and negative merging. |
 | `src/persistence.js` | Storybook get/set/sync, swipe mirroring, hashes, stale detection, save helpers. |
 | `src/planner.js` | Planner orchestration, response parsing, prompt compilation, keyframe shaping. |
 | `src/backends/planner.js` | Custom OpenAI-compatible planner HTTP client. |
@@ -126,7 +127,10 @@ Important fields:
 | `saveToGallery` | boolean | Passed to `/imagine`. |
 | `include` | object | Character card fields to include. |
 | `contextMessages` | number | Prior messages passed to the planner. |
-| `anchor`, `styleText`, `negative` | string | Prompt fragments. |
+| `anchor` | string | Reusable character appearance fragment. |
+| `styleProfile` | `auto` \| `anime` \| `photorealistic` \| `painterly` | Built-in style tags, style text and negatives. |
+| `styleText` | string | Additional user style, deduped and appended after the selected profile. |
+| `negative` | string | Extra negative fragments; always merged with built-in negatives. |
 | `plannerPrompt` | string | Override prompt; empty means built-in. |
 | `plannerBackend` | `st` \| `custom` | Planner transport. |
 | `customApi` | object | `baseUrl`, `model`, `temperature`, `maxTokens`. |
@@ -144,7 +148,7 @@ Produced by `runJob` in `src/pipeline.js`:
 {
   "v": 1,
   "id": "uuid",
-  "sourceHash": "…",        // text + count + style + anchor + prompt + size + "v1"
+  "sourceHash": "…",        // text + count + style profile + style + anchor + prompt + size + "v2"
   "textHash": "…",          // hash of the message text only
   "status": "planning",     // planning | generating | ready | partial | error | cancelled
   "createdAt": 0,
@@ -152,13 +156,13 @@ Produced by `runJob` in `src/pipeline.js`:
   "anchor": "…",
   "backend": { "kind": "st", "text": "…" },
   "planner": { "api": "…", "backend": "st|custom" },
-  "settings": { "count": 3, "size": "portrait", "styleText": "…", "negative": "…" },
+  "settings": { "count": 3, "size": "portrait", "styleProfile": "auto", "styleText": "…", "negative": "…" },
   "keyframes": [
     {
       "i": 0,
       "title": "…",
       "caption": "…",
-      "prompt": "…",          // compiled: style, anchor, raw prompt
+      "prompt": "…",          // compiled: profile, user style, anchor, raw prompt
       "rawImagePrompt": "…",
       "status": "pending",    // pending | ready | error
       "url": "",
@@ -324,8 +328,9 @@ cancelled job persists `status: 'cancelled'` (or keeps `partial` if some frames 
 - Optional context: up to `contextMessages` earlier messages, skipping system and hidden messages.
 - Character fields from `ctx.getCharacterCardFields()` filtered by `settings.include`.
 - Field clipping: description 1400, personality 600, scenario 600, persona 600, context lines 500.
+- Style summary: selected profile label, profile style text and additional user style.
 
-`buildUserPrompt` emits blocks in this order: `CONTEXT`, `LATEST STORY`, `CHARACTER`, `PERSONA`.
+`buildUserPrompt` emits blocks in this order: `STYLE`, `CONTEXT`, `LATEST STORY`, `CHARACTER`, `PERSONA`.
 
 ### 8.2 System prompt
 
@@ -345,13 +350,33 @@ the planner reuses it verbatim.
 3. `normalizePlannerOutput` accepts objects, fenced JSON, or the first balanced JSON object in a string.
 4. `shapeKeyframes` cleans, sorts, truncates to `count`, drops entries without an image prompt, and throws if
    nothing usable remains.
-5. Each frame prompt is compiled by `compileImagePrompt`: `style, anchor, imagePrompt`.
+5. Each frame prompt is compiled by `compileImagePrompt`: profile tags, profile subject tags, profile
+   style text, additional user style, anchor, then `imagePrompt`. Fragments are deduped
+   case-insensitively, a repeated anchor is not added twice, and the result is capped at 1500
+   characters while protecting the style and anchor.
 6. Throws `The storyboard planner returned no usable keyframes.` or
    `The storyboard planner did not return JSON...` with actionable text.
 
 `responseLengthFor(count)` = `min(4096, 600 + count * 520)`.
 
-### 8.4 Custom backend
+### 8.4 Style profiles
+
+`src/styles.js` owns the built-in profiles. Default is selected out of the box and adds no positive
+quality tags.
+
+| Profile | Positive tags | Negative tags |
+| --- | --- | --- |
+| Default | none | `text, watermark, logo, signature, low quality, blurry` |
+| Anime | `anime style, illustration, best quality, detailed eyes, clean lineart` | `photorealistic, 3d render, lowres, bad anatomy, bad hands, text, watermark, logo, signature` |
+| Photorealistic | `photorealistic, high quality, sharp focus, natural lighting, detailed textures` | `anime, cartoon, illustration, painting, plastic skin, uncanny face, low quality, blurry, text, watermark, logo, signature` |
+| Painterly | `painterly, fantasy illustration, soft brushwork, rich atmosphere, high detail` | `photorealistic, flat colors, muddy details, text, watermark, logo, signature, low quality` |
+
+Each profile also supplies illustration subject tags and style text. The additional user style is
+deduped against the profile and appended after it. `DEFAULT_NEGATIVE_PROMPT` from `src/defaults.js` is
+always merged before the profile negatives, then `settings.negative` is added. Changing `styleProfile`
+changes `sourceHash`, so existing storybooks regenerate instead of reusing old prompts.
+
+### 8.5 Custom backend
 
 `src/backends/planner.js`:
 
@@ -369,8 +394,10 @@ the planner reuses it verbatim.
 directly:
 
 - Requires `ctx.SlashCommandParser.commands.imagine.callback`.
-- Arguments: `quiet`, `gallery`, `extend: 'false'`, `_abortController`, optional `negative`, and
+- Arguments: `quiet`, `gallery`, `extend: 'false'`, `_abortController`, `negative`, and
   `width`/`height` from `resolveSize(settings)` unless the size preset is `st`.
+- Negatives are always merged and deduped: built-in illustration negatives, selected profile
+  negatives, then `settings.negative`.
 - Bridges the pipeline's `AbortSignal` to a local `AbortController`.
 - Throws `AbortError` after the call if the request was cancelled.
 - Throws a `systemic` error when nothing is returned.
@@ -527,7 +554,7 @@ These behaviors are easy to get wrong, so they are documented here for future ch
 3. Bind it in `bindSettingsControls()` (checkbox/input/select helper).
 4. Write it in `refreshSettingsUI()`.
 5. If it affects layout/visibility, extend `syncDependentUI()`.
-6. If it must invalidate generated artwork, include it in `sourceHashFor` inputs and bump the `'v1'` marker
+6. If it must invalidate generated artwork, include it in `sourceHashFor` inputs and bump the `'v2'` marker
    in `src/persistence.js` so existing storybooks are regenerated rather than silently reused.
 
 ### Add a planner backend
