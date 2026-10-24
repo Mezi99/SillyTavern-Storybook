@@ -1,6 +1,8 @@
 export const MODULE_NAME = 'Storybook';
 export const SETTINGS_KEY = 'storybook';
 
+export const DEFAULT_NEGATIVE_PROMPT = 'text, letters, captions, subtitles, UI, watermark, logo, signature, speech bubble, split screen, panel, collage, contact sheet, character sheet, grid, multiple views, four images, duplicated face, extra head, extra limbs, extra digits, bad anatomy, poorly drawn hands, deformed, low quality, blurry, jpeg artifacts';
+
 export const SIZE_PRESETS = {
     portrait: { width: 832, height: 1216, label: 'Portrait 832 x 1216' },
     landscape: { width: 1216, height: 832, label: 'Landscape 1216 x 832' },
@@ -30,6 +32,7 @@ For every keyframe produce:
 - title: 2 to 5 words.
 - caption: one short storybook sentence, narration for a reader, no quotation marks around dialogue.
 - imagePrompt: a self-contained English description for a text-to-image model. Name the subject, the action, the place, the light, the mood and the framing. Never write "as before", "in the previous image", "same character" or anything that depends on another frame.
+- imagePrompt must describe visible content only. Do not repeat the STYLE text, medium, quality tags, negative prompts or phrases such as "no text"; the extension appends style and negatives separately.
 
 Also produce:
 - characterAnchor: one reusable string, under 40 words, describing the main character's visible appearance in enough detail that repeating the same string keeps the face and outfit consistent. Use the same wording style as a character sheet: species or ethnicity, hair, eyes, build, clothing, notable marks.
@@ -52,6 +55,8 @@ export const defaultSettings = {
     interval: 3,
     autoOnSwipe: true,
     openLightboxOnFinish: false,
+    showInline: false,
+    showDebugTools: false,
     size: 'portrait',
     saveToGallery: false,
     include: {
@@ -62,6 +67,7 @@ export const defaultSettings = {
     },
     contextMessages: 2,
     anchor: '',
+    styleProfile: 'auto',
     styleText: '',
     negative: '',
     plannerPrompt: '',

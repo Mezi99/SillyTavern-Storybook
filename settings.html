@@ -31,6 +31,24 @@
             <hr>
 
             <div class="flex-container flexFlowColumn wide100p">
+                <span>Display</span>
+                <small>The storybook opens in a floating window that you can drag, resize and collapse. Position and size are remembered in this browser.</small>
+                <label class="checkbox_label" for="storybook_show_inline">
+                    <input id="storybook_show_inline" type="checkbox" class="checkbox">
+                    <span>Also show the storybook under each message (legacy)</span>
+                    <i class="fa-solid fa-info-circle" title="Keeps the older inline carousel in addition to the floating window."></i>
+                </label>
+                <label class="checkbox_label" for="storybook_show_debug_tools">
+                    <input id="storybook_show_debug_tools" type="checkbox" class="checkbox">
+                    <span>Show debug tools in the floating window</span>
+                    <i class="fa-solid fa-info-circle" title="Adds a Debug menu with the planner request, raw response and final image prompts. Traces are kept for this browser session only."></i>
+                </label>
+                <div id="storybook_reset_window" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-arrows-up-down-left-right"></i> Reset floating window position</div>
+            </div>
+
+            <hr>
+
+            <div class="flex-container flexFlowColumn wide100p">
                 <label for="storybook_trigger">Generate when</label>
                 <select id="storybook_trigger" class="text_pole">
                     <option value="reply">Every assistant reply</option>
@@ -68,13 +86,24 @@
             </div>
 
             <div class="flex-container flexFlowColumn wide100p">
-                <label for="storybook_style_text">Style</label>
-                <textarea id="storybook_style_text" class="text_pole textarea_compact autoSetHeight" rows="2" placeholder="Optional. Overall look, e.g. soft watercolor storybook illustration."></textarea>
+                <label for="storybook_style_profile">Style profile</label>
+                <select id="storybook_style_profile" class="text_pole">
+                    <option value="auto">Default</option>
+                    <option value="anime">Anime</option>
+                    <option value="photorealistic">Photorealistic</option>
+                    <option value="painterly">Painterly</option>
+                </select>
+                <small>Built-in style tags and negatives for the selected look.</small>
+            </div>
+
+            <div class="flex-container flexFlowColumn wide100p">
+                <label for="storybook_style_text">Additional style</label>
+                <textarea id="storybook_style_text" class="text_pole textarea_compact autoSetHeight" rows="2" placeholder="Optional. Appended to the selected style profile, e.g. moonlit palette, soft watercolor edges."></textarea>
             </div>
 
             <div class="flex-container flexFlowColumn wide100p">
                 <label for="storybook_negative">Negative prompt</label>
-                <textarea id="storybook_negative" class="text_pole textarea_compact autoSetHeight" rows="1" placeholder="Optional. Things to avoid in every frame."></textarea>
+                <textarea id="storybook_negative" class="text_pole textarea_compact autoSetHeight" rows="1" placeholder="Optional. Extra things to avoid; built-in illustration negatives are always applied."></textarea>
             </div>
 
             <hr>
@@ -159,10 +188,6 @@
             </div>
 
             <div class="flex-container flexFlowColumn wide100p storybook-actions">
-                <div id="storybook_generate_last" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate for the last reply</div>
-                <div id="storybook_cancel_job" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-stop"></i> Stop the running job</div>
-                <div id="storybook_clear_last" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-eraser"></i> Remove storybook from the last reply</div>
-                <div id="storybook_test_planner" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-list-ol"></i> Test the planner</div>
                 <div id="storybook_test_image" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-image"></i> Test image generation</div>
                 <div id="storybook_show_sd" class="menu_button" role="button" tabindex="0"><i class="fa-solid fa-gear"></i> Show Image Generation settings</div>
             </div>

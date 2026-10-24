@@ -2,7 +2,8 @@ import { STORY_EVENTS, emit } from './bus.js';
 import { getCtx, getMessage, uuid } from './context.js';
 import { countForSettings, getSettings, sessionStats, updateStatsUI } from './settings.js';
 import { planKeyframes } from './planner.js';
-import { describeImageBackend, generateImage } from './backends/image.js';
+import { recordImageRequest } from './debug.js';
+import { buildImageRequest, describeImageBackend, generateImage } from './backends/image.js';
 import { ensureExtra, saveNow, saveSoon, setStorybook, sourceHashFor, syncStorybook, textHashFor } from './persistence.js';
 
 const AUTO_REASONS = new Set(['reply', 'swipe', 'interval']);
@@ -143,6 +144,7 @@ async function runJob(job) {
     const hash = sourceHashFor({
         text,
         count: plannedCount,
+        styleProfile: settings.styleProfile,
         styleText: settings.styleText,
         anchor: settings.anchor,
         plannerPrompt: settings.plannerPrompt,
@@ -187,6 +189,7 @@ async function runJob(job) {
         settings: {
             count: plannedCount,
             size: settings.size,
+            styleProfile: settings.styleProfile ?? 'auto',
             styleText: settings.styleText ?? '',
             negative: settings.negative ?? '',
         },
@@ -247,6 +250,12 @@ async function runJob(job) {
 
         const started = performance.now();
         try {
+            recordImageRequest({
+                chatId,
+                mesId: job.mesId,
+                frameIndex: i,
+                request: buildImageRequest({ prompt: frame.prompt }),
+            });
             const result = await generateImage({
                 prompt: frame.prompt,
                 signal: job.controller.signal,

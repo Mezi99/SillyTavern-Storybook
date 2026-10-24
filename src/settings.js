@@ -142,6 +142,8 @@ export function bindSettingsControls() {
     bindCheckbox('storybook_auto_on_swipe', (s, v) => s.autoOnSwipe = v);
     bindCheckbox('storybook_open_lightbox', (s, v) => s.openLightboxOnFinish = v);
     bindCheckbox('storybook_save_to_gallery', (s, v) => s.saveToGallery = v);
+    bindCheckbox('storybook_show_inline', (s, v) => s.showInline = v);
+    bindCheckbox('storybook_show_debug_tools', (s, v) => s.showDebugTools = v);
 
     bindInput('storybook_keyframes', (s, v) => s.keyframes = Math.min(6, Math.max(1, Number(v) || 3)));
     bindInput('storybook_trigger', (s, v) => s.trigger = v);
@@ -155,6 +157,7 @@ export function bindSettingsControls() {
     bindInput('storybook_context_messages', (s, v) => s.contextMessages = Math.min(10, Math.max(0, Number(v) || 0)));
 
     bindInput('storybook_anchor', (s, v) => s.anchor = v);
+    bindInput('storybook_style_profile', (s, v) => s.styleProfile = v);
     bindInput('storybook_style_text', (s, v) => s.styleText = v);
     bindInput('storybook_negative', (s, v) => s.negative = v);
     bindInput('storybook_planner_prompt', (s, v) => s.plannerPrompt = v);
@@ -233,6 +236,8 @@ export function refreshSettingsUI() {
     setChecked('storybook_auto_on_swipe', settings.autoOnSwipe);
     setChecked('storybook_open_lightbox', settings.openLightboxOnFinish);
     setChecked('storybook_save_to_gallery', settings.saveToGallery);
+    setChecked('storybook_show_inline', settings.showInline);
+    setChecked('storybook_show_debug_tools', settings.showDebugTools);
 
     setValue('storybook_keyframes', settings.keyframes);
     setValue('storybook_trigger', settings.trigger);
@@ -247,6 +252,7 @@ export function refreshSettingsUI() {
     setValue('storybook_context_messages', settings.contextMessages);
 
     setText('storybook_anchor', settings.anchor);
+    setValue('storybook_style_profile', settings.styleProfile);
     setText('storybook_style_text', settings.styleText);
     setText('storybook_negative', settings.negative);
     setText('storybook_planner_prompt', settings.plannerPrompt);

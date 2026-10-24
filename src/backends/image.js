@@ -1,5 +1,7 @@
+import { DEFAULT_NEGATIVE_PROMPT } from '../defaults.js';
 import { getCtx, resolveSize, tryGetCtx } from '../context.js';
 import { getSettings } from '../settings.js';
+import { mergeNegatives, resolveStyleProfile } from '../styles.js';
 
 function abortError() {
     const err = new Error('Storybook generation cancelled');
@@ -19,6 +21,24 @@ export function describeImageBackend() {
     const source = sd.source ? String(sd.source) : 'unknown';
     const model = sd.model ? String(sd.model) : 'default model';
     return { ok: true, text: `Using SillyTavern Image Generation · ${source} · ${model}` };
+}
+
+export function buildImageRequest({ prompt, negative }) {
+    const settings = getSettings();
+    const profile = resolveStyleProfile(settings.styleProfile);
+    const mergedNegative = mergeNegatives([
+        DEFAULT_NEGATIVE_PROMPT,
+        profile.negativeTags,
+        settings.negative,
+        negative,
+    ]);
+    const size = resolveSize(settings);
+    return {
+        prompt: String(prompt ?? '').trim(),
+        negative: mergedNegative,
+        width: size.width,
+        height: size.height,
+    };
 }
 
 export async function generateImage({ prompt, negative, signal }) {
@@ -42,6 +62,7 @@ export async function generateImage({ prompt, negative, signal }) {
         signal.addEventListener('abort', () => controller.abort(), { once: true });
     }
 
+    const request = buildImageRequest({ prompt, negative });
     const args = {
         quiet: 'true',
         gallery: settings.saveToGallery ? 'true' : 'false',
@@ -49,24 +70,15 @@ export async function generateImage({ prompt, negative, signal }) {
         _abortController: controller,
     };
 
-    const negativeParts = [];
-    if (settings.negative) {
-        negativeParts.push(settings.negative);
+    if (request.negative) {
+        args.negative = request.negative;
     }
-    if (negative) {
-        negativeParts.push(negative);
-    }
-    if (negativeParts.length) {
-        args.negative = negativeParts.join(', ');
+    if (request.width && request.height) {
+        args.width = String(request.width);
+        args.height = String(request.height);
     }
 
-    const size = resolveSize(settings);
-    if (size.width && size.height) {
-        args.width = String(size.width);
-        args.height = String(size.height);
-    }
-
-    const url = await command.callback(args, String(prompt));
+    const url = await command.callback(args, request.prompt);
 
     if (signal?.aborted || controller.signal.aborted) {
         throw abortError();
@@ -77,5 +89,5 @@ export async function generateImage({ prompt, negative, signal }) {
         throw err;
     }
 
-    return { url: String(url) };
+    return { url: String(url), request };
 }

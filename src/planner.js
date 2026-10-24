@@ -2,6 +2,8 @@ import { PLANNER_SCHEMA } from './defaults.js';
 import { buildPlannerInput, buildUserPrompt, getCtx } from './context.js';
 import { countForSettings, getPlannerPrompt, getSettings, sessionStats } from './settings.js';
 import { requestCustomPlan } from './backends/planner.js';
+import { recordPlanResult, recordPlannerAttempt, recordPlannerError, recordPlannerRequest } from './debug.js';
+import { composeStyledPromptDetailed, resolveStyleProfile } from './styles.js';
 
 function parseJsonCandidate(text) {
     if (typeof text !== 'string') {
@@ -89,19 +91,19 @@ function cleanString(value, max = 400) {
     return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-export function compileImagePrompt({ imagePrompt, anchor, styleText }) {
+export function compileImagePromptDetailed({ imagePrompt, anchor, styleText, styleProfile }) {
     const ctx = getCtx();
-    const parts = [];
-    const style = cleanString(ctx.substituteParams(styleText ?? ''), 500);
-    if (style) {
-        parts.push(style.replace(/,+$/, ''));
-    }
-    const character = cleanString(ctx.substituteParams(anchor ?? ''), 500);
-    if (character) {
-        parts.push(character.replace(/,+$/, ''));
-    }
-    parts.push(cleanString(imagePrompt, 900));
-    return parts.filter(Boolean).join(', ');
+    return composeStyledPromptDetailed({
+        profile: resolveStyleProfile(styleProfile),
+        userStyle: cleanString(ctx.substituteParams(styleText ?? ''), 500),
+        anchor: cleanString(ctx.substituteParams(anchor ?? ''), 500),
+        imagePrompt: cleanString(imagePrompt, 900),
+        maxChars: 1500,
+    });
+}
+
+export function compileImagePrompt(options) {
+    return compileImagePromptDetailed(options).prompt;
 }
 
 function shapeKeyframes(data, count, input, settings) {
@@ -124,30 +126,46 @@ function shapeKeyframes(data, count, input, settings) {
 
     const anchor = String(settings.anchor ?? '').trim() || cleanString(data.characterAnchor, 500);
     const styleText = settings.styleText ?? '';
+    const styleProfile = settings.styleProfile ?? 'auto';
 
-    return {
-        anchor,
-        keyframes: usable.map((item, position) => ({
+    const promptDetails = [];
+    const keyframes = usable.map((item, position) => {
+        const compiled = compileImagePromptDetailed({
+            imagePrompt: item.imagePrompt,
+            anchor,
+            styleText,
+            styleProfile,
+        });
+        promptDetails.push(compiled);
+        return {
             i: position,
             title: item.title || `Frame ${position + 1}`,
             caption: item.caption,
-            prompt: compileImagePrompt({ imagePrompt: item.imagePrompt, anchor, styleText }),
+            prompt: compiled.prompt,
             rawImagePrompt: item.imagePrompt,
             status: 'pending',
             url: '',
             error: '',
             elapsedMs: 0,
-        })),
+        };
+    });
+
+    return {
+        anchor,
+        keyframes,
         input,
+        promptDetails,
     };
 }
 
-async function requestPlan({ systemPrompt, userPrompt, count, useSchema, settings, signal }) {
+async function requestPlan({ chatId, mesId, systemPrompt, userPrompt, count, useSchema, settings, signal }) {
     const ctx = getCtx();
 
     if (settings.plannerBackend === 'custom') {
         const raw = await requestCustomPlan({ systemPrompt, userPrompt, settings, count, signal });
-        return normalizePlannerOutput(raw);
+        const parsed = normalizePlannerOutput(raw);
+        recordPlannerAttempt({ chatId, mesId, kind: 'custom', raw, parsed: Boolean(parsed) });
+        return parsed;
     }
 
     const options = {
@@ -160,20 +178,26 @@ async function requestPlan({ systemPrompt, userPrompt, count, useSchema, setting
         try {
             const raw = await ctx.generateRaw({ ...options, jsonSchema: PLANNER_SCHEMA });
             const parsed = normalizePlannerOutput(raw);
-            if (parsed && Array.isArray(parsed.keyframes) && parsed.keyframes.length) {
+            const usable = Boolean(parsed && Array.isArray(parsed.keyframes) && parsed.keyframes.length);
+            recordPlannerAttempt({ chatId, mesId, kind: 'structured', raw, parsed: usable });
+            if (usable) {
                 return parsed;
             }
         } catch (err) {
+            recordPlannerAttempt({ chatId, mesId, kind: 'structured', raw: '', parsed: false, error: err?.message ?? err });
             console.warn('[Storybook] structured planner attempt failed, retrying as plain text', err);
         }
     }
     const raw = await ctx.generateRaw(options);
-    return normalizePlannerOutput(raw);
+    const parsed = normalizePlannerOutput(raw);
+    recordPlannerAttempt({ chatId, mesId, kind: 'plain', raw, parsed: Boolean(parsed) });
+    return parsed;
 }
 
 export async function planKeyframes({ mesId, count, signal }) {
     const settings = getSettings();
     const ctx = getCtx();
+    const chatId = String(ctx.getCurrentChatId?.() ?? 'unsaved');
     const plannedCount = count ?? countForSettings(settings);
     const input = buildPlannerInput(mesId, settings);
 
@@ -185,18 +209,48 @@ export async function planKeyframes({ mesId, count, signal }) {
     const userPrompt = buildUserPrompt(input);
     const useSchema = ctx.mainApi === 'openai' && settings.plannerBackend !== 'custom';
 
+    recordPlannerRequest({
+        chatId,
+        mesId,
+        systemPrompt,
+        userPrompt,
+        meta: {
+            backend: settings.plannerBackend,
+            api: ctx.mainApi ?? '',
+            count: plannedCount,
+            responseLength: responseLengthFor(plannedCount),
+            useSchema,
+            model: settings.plannerBackend === 'custom' ? String(settings.customApi?.model ?? '') : '',
+        },
+    });
+
     sessionStats.plannerCalls++;
 
     let data = null;
     try {
-        data = await requestPlan({ systemPrompt, userPrompt, count: plannedCount, useSchema, settings, signal });
+        data = await requestPlan({ chatId, mesId, systemPrompt, userPrompt, count: plannedCount, useSchema, settings, signal });
     } catch (err) {
+        recordPlannerError({ chatId, mesId, message: err?.message ?? err });
         throw new Error(`Storyboard planning failed: ${err?.message ?? err}`);
     }
 
     if (!data) {
-        throw new Error('The storyboard planner did not return JSON. Try the "Test planner" button after adjusting the planner prompt.');
+        recordPlannerError({ chatId, mesId, message: 'The storyboard planner did not return JSON.' });
+        throw new Error('The storyboard planner did not return JSON. Open the Storybook debug tools after adjusting the planner prompt.');
     }
 
-    return shapeKeyframes(data, plannedCount, input, settings);
+    try {
+        const plan = shapeKeyframes(data, plannedCount, input, settings);
+        recordPlanResult({
+            chatId,
+            mesId,
+            anchor: plan.anchor,
+            frames: plan.keyframes,
+            promptDetails: plan.promptDetails,
+        });
+        return plan;
+    } catch (err) {
+        recordPlannerError({ chatId, mesId, message: err?.message ?? err });
+        throw err;
+    }
 }
